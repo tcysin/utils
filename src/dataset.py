@@ -10,6 +10,7 @@ The expected layout of 'root' directory is as follows:
     coco-annotations.json
 """
 
+from pathlib import Path
 from PIL import Image
 
 from pycocotools.coco import COCO
