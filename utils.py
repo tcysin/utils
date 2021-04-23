@@ -3,12 +3,11 @@ Module with helper functions for instance segmentation tasks.
 """
 
 import numpy as np
-import matplotlib.pyplot as plt
 import cv2 as cv
 
 
 # horizontal padding (px)
-PADDING_X = 15
+PADDING_X = 20
 # vertical padding (px)
 PADDING_Y = 20
 
@@ -19,8 +18,9 @@ def draw_mask(img, mask, alpha, color):
     Params:
         img (ndarray): uint8 BGR image w. shape (H,W,C).
         mask (ndarray): uint8 binary mask w. shape (H,W).
-            Values are in {0,1}.
+            Values above zero are treated as 1.
         alpha (float): weight of the image array element, must be in [0,1].
+            Used for blending original image and colored segmentation mask.
         color (tuple): BGR color of the mask.
 
     Returns:
@@ -28,6 +28,7 @@ def draw_mask(img, mask, alpha, color):
     """
 
     # create opencv-compatible binary mask of a segment and its inverse
+    mask = mask.copy()
     mask[mask > 0] = 255
     mask_inv = cv.bitwise_not(mask)
 
@@ -51,7 +52,9 @@ def draw_mask(img, mask, alpha, color):
     return result
 
 
-def draw_bboxes(img, boxes, scores=None, color=(0, 255, 0), thickness=2):
+def draw_bboxes(
+        img, boxes, scores=None, color=(0, 255, 0), thickness=2,
+        font_scale=1, font_thickness=1, pad_y=PADDING_Y):
     """Return image with bounding boxes drawn on top of it.
 
     Params:
@@ -61,7 +64,10 @@ def draw_bboxes(img, boxes, scores=None, color=(0, 255, 0), thickness=2):
         scores (list): N scores for each bbox prediction.
             Defaults to None.
         color (tuple): BGR.
-        thickness (int): thickness of lines (px that make up the rectangle.
+        thickness (int): thickness (px) of lines that make up the rectangle.
+        font_scale (float): factor that multiplies font-specific base size.
+        font_thickness (int): thickness (px) of lines to draw text.
+        pad_y (int): vertical padding (px) for text origin.
 
     Returns:
         uint8 BGR image array with bboxes.
@@ -80,11 +86,11 @@ def draw_bboxes(img, boxes, scores=None, color=(0, 255, 0), thickness=2):
 
             # pad the starting coordinates of a text a little
             x0 += PADDING_X
-            y0 += PADDING_Y
+            y0 += pad_y
 
             img = cv.putText(
-                img, text=str(round(score, 2)), org=(x0+15, y0+20),
-                fontFace=cv.FONT_HERSHEY_SIMPLEX, fontScale=0.5,
-                color=color, thickness=2)
+                img, text=str(round(score, 2)), org=(x0, y0),
+                fontFace=cv.FONT_HERSHEY_SIMPLEX, fontScale=font_scale,
+                color=color, thickness=font_thickness)
 
     return img
