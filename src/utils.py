@@ -1,18 +1,18 @@
 """
-Module with helper functions for instance segmentation tasks.
+Module with drawing routines for instance segmentation tasks.
 """
 
 import numpy as np
 import cv2 as cv
 
 
-# horizontal padding (px)
-PADDING_X = 20
-# vertical padding (px)
-PADDING_Y = 20
+# default padding (px)
+PADDING = 20
 
 
-def draw_mask(img, mask, alpha, color):
+def draw_mask(
+        img, mask, alpha, color,
+        text=None, font_scale=1, font_thickness=1):
     """Return image array with segmentation mask drawn on top.
 
     Params:
@@ -22,6 +22,9 @@ def draw_mask(img, mask, alpha, color):
         alpha (float): weight of the image array element, must be in [0,1].
             Used for blending original image and colored segmentation mask.
         color (tuple): BGR color of the mask.
+        text (str): text to put on top of the final image.
+        font_scale (float): factor that multiplies font-specific base size.
+        font_thickness (int): thickness (px) of lines to draw text.
 
     Returns:
         uint8 BGR image array with segmentation mask.
@@ -49,12 +52,24 @@ def draw_mask(img, mask, alpha, color):
     # put blended patch(es) on original background
     result = cv.add(blended_fg, background)
 
+    if text is not None:
+        # calculate the center of the mask - stupid way
+        rows, cols = np.nonzero(mask)
+        y0, y1 = np.min(rows), np.max(rows)
+        x0, x1 = np.min(cols), np.max(cols)
+        origin = (x0 + (x1-x0) // 4, (y0 + y1) // 2)
+
+        result = cv.putText(
+            result, text, org=origin,
+            fontFace=cv.FONT_HERSHEY_SIMPLEX, fontScale=font_scale,
+            color=(0, 0, 0), thickness=font_thickness)
+
     return result
 
 
 def draw_bboxes(
         img, boxes, scores=None, color=(0, 255, 0), thickness=2,
-        font_scale=1, font_thickness=1, pad_y=PADDING_Y):
+        font_scale=1, font_thickness=1):
     """Return image with bounding boxes drawn on top of it.
 
     Params:
@@ -67,7 +82,6 @@ def draw_bboxes(
         thickness (int): thickness (px) of lines that make up the rectangle.
         font_scale (float): factor that multiplies font-specific base size.
         font_thickness (int): thickness (px) of lines to draw text.
-        pad_y (int): vertical padding (px) for text origin.
 
     Returns:
         uint8 BGR image array with bboxes.
@@ -82,14 +96,13 @@ def draw_bboxes(
     if scores is not None:
 
         for bbox, score in zip(boxes, scores):
-            x0, y0, *_ = [int(v) for v in bbox]
+            x0, *_, y1 = [int(v) for v in bbox]
 
-            # pad the starting coordinates of a text a little
-            x0 += PADDING_X
-            y0 += pad_y
+            # place text in the lower left corner of the box
+            origin = (x0 + PADDING, y1 - PADDING)
 
             img = cv.putText(
-                img, text=str(round(score, 2)), org=(x0, y0),
+                img, text=str(round(score, 2)), org=origin,
                 fontFace=cv.FONT_HERSHEY_SIMPLEX, fontScale=font_scale,
                 color=color, thickness=font_thickness)
 
