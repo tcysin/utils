@@ -77,7 +77,6 @@ def draw_bboxes(
         boxes (list): bounding box coordinates.
             Contains N coordinates, which are [x0, y0, x1, y1].
         scores (list): N scores for each bbox prediction.
-            Defaults to None.
         color (tuple): BGR.
         thickness (int): thickness (px) of lines that make up the rectangle.
         font_scale (float): factor that multiplies font-specific base size.

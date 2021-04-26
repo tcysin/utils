@@ -10,34 +10,27 @@ The expected layout of 'root' directory is as follows:
     coco-annotations.json
 """
 
-from pathlib import Path
-from PIL import Image
-
-from pycocotools.coco import COCO
 import torch
-from torch.utils.data import Dataset
+from torchvision.datasets import CocoDetection
 
 
-# TODO: maybe transfer tensors to good device explicitly?
-
-class FloorplanDataset(Dataset):
-    def __init__(self, root, annotations_file, transforms=None):
-        self.root = Path(root)
-        self.img_dir = self.root / 'images'
-        self.coco = COCO(self.root / annotations_file)
-        self.img_ids = self.coco.getImgIds()
-        self.transforms = transforms
+class FloorplanDataset(CocoDetection):
+    def __init__(
+            self, root, annFile,
+            transform=None, target_transform=None, transforms=None):
+        # call parent's init
+        CocoDetection.__init__(
+            self, root, annFile, transform, target_transform, transforms)
 
     def __len__(self):
-        return len(self.img_ids)
+        return len(self.ids)
 
-    def __getitem__(self, idx):
-        # load image at corresponding index
-        img_id = self.img_ids[idx]
-        img = self.load_image(img_id)
+    def __getitem__(self, index):
+        # load image and annotations at corresponding index
+        img = CocoDetection._load_image(self, index)
+        anns = CocoDetection._load_target(self, index)
 
         # construct stuff from annotations list
-        anns = self.annotations(img_id)
         boxes = []
         labels = []
         areas = []
@@ -45,6 +38,7 @@ class FloorplanDataset(Dataset):
 
         for ann in anns:
             # bbox
+            # TODO: convert coords to ints?
             x, y, width, height = ann['bbox']
             bbox = [x, y, x+width, y+height]
             boxes.append(bbox)
@@ -54,6 +48,8 @@ class FloorplanDataset(Dataset):
             labels.append(label)
 
             # bbox area
+            # TODO: abs()?
+            # TODO: int instead of float for pixels?
             area = ann['area']
             areas.append(area)
 
@@ -62,11 +58,12 @@ class FloorplanDataset(Dataset):
             masks.append(mask)
 
         # essentials
+        # TODO: int for coords instead of float?
         boxes = torch.tensor(boxes, dtype=torch.float)
         labels = torch.tensor(labels, dtype=torch.int64)
         masks = torch.tensor(masks, dtype=torch.uint8)
         # for evaluation script
-        img_id_tensor = torch.tensor(img_id, dtype=torch.int64)
+        image_id = torch.tensor(index, dtype=torch.int64)
         area = torch.tensor(areas, dtype=torch.float)
         iscrowd = torch.zeros(len(anns), dtype=torch.uint8)
 
@@ -74,7 +71,7 @@ class FloorplanDataset(Dataset):
         target['boxes'] = boxes
         target['labels'] = labels
         target['masks'] = masks
-        target['image_id'] = img_id_tensor
+        target['image_id'] = image_id
         target['area'] = area
         target['iscrowd'] = iscrowd
 
@@ -83,31 +80,7 @@ class FloorplanDataset(Dataset):
 
         return img, target
 
-    def get_height_and_width(self):
-        # TODO
-        raise NotImplementedError
-
-    def load_image(self, image_id):
-        """Load and return PIL image corresponding to given image_id.
-
-        Note that image_id is the one in annotations file.
-        """
-
-        img_info = self.coco.loadImgs([image_id])[0]
-        img_path = self.img_dir / img_info['file_name']
-        img = Image.open(img_path).convert('RGB')
-
-        return img
-
-    def annotations(self, image_id):
-        """Return a list of annotations for given image."""
-
-        annIds = self.coco.getAnnIds(imgIds=[image_id])
-        anns = self.coco.loadAnns(annIds)
-
-        return anns
-
-    def id_to_cat(self, cat_id):
+    def cat_name(self, cat_id):
         """Return category name corresponding to its id."""
         cat = self.coco.loadCats([cat_id])[0]
         return cat['name']
