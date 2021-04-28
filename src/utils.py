@@ -86,6 +86,8 @@ def draw_bboxes(
         uint8 BGR image array with bboxes.
     """
 
+    img = img.copy()
+
     # add original boxes to the image
     for bbox in boxes:
         x0, y0, x1, y1 = [int(v) for v in bbox]

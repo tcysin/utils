@@ -7,6 +7,20 @@ from torchvision.datasets import CocoDetection
 
 
 class FloorplanDataset(CocoDetection):
+    """Custom dataset for working with instance segmentation tasks.
+
+    Args:
+        root (string): Root directory where images are downloaded to.
+        annFile (string): Path to json annotation file.
+        transform (callable, optional): A function/transform that takes in 
+            an image array and returns a transformed version.
+        target_transform (callable, optional): A function/transform that takes 
+            in the target dictionary and transforms it.
+        transforms (callable, optional): A function/transform that takes 
+            image array and its target dictrionary as entry and returns a 
+            transformed version.
+    """
+
     def __init__(
             self, root, annFile,
             transform=None, target_transform=None, transforms=None):
@@ -15,6 +29,23 @@ class FloorplanDataset(CocoDetection):
             self, root, annFile, transform, target_transform, transforms)
 
     def __getitem__(self, index):
+        """Return (image, target) tuple.
+
+        Loads image and corresponding annotations, converts them to ndarrays,
+        optionally applies transformations.
+
+        Returns:
+            image (ndarray): (transformed) RGB image array.
+                Has shape (H, W, C). Image is loaded as-is, without additional 
+                normalization / processing.
+            target (dict): (transformed) target dictionary. Fields are:
+                'boxes': (N, 4) float array of bounding boxes.
+                'labels': (N,) int64 array of labels.
+                'masks': (N, H, W) uin8 array of binary {0, 1} masks.
+                'image_id': (1,) int64 array with image id (from annotaions).
+                'area': (N,) float array with bbox areas.              
+            """
+
         # load image and annotations at corresponding index
         ID = self.ids[index]
         img = CocoDetection._load_image(self, ID)
@@ -55,7 +86,7 @@ class FloorplanDataset(CocoDetection):
         labels = np.array(labels, dtype=np.int64)
         masks = np.array(masks, dtype=np.uint8)
         # for evaluation script
-        image_id = np.array(index, dtype=np.int64)
+        image_id = np.array([index], dtype=np.int64)
         area = np.array(areas, dtype=np.float)
         iscrowd = np.zeros(len(anns), dtype=np.uint8)
 
