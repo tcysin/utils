@@ -3,7 +3,9 @@ Custom PyTorch dataset for instance segmentation.
 """
 
 import numpy as np
+import torch
 from torchvision.datasets import CocoDetection
+from torchvision.transforms import functional as TF
 
 
 class FloorplanDataset(CocoDetection):
@@ -19,14 +21,19 @@ class FloorplanDataset(CocoDetection):
         transforms (callable, optional): A function/transform that takes 
             image array and its target dictrionary as entry and returns a 
             transformed version.
+        as_tensors (bool): whether to convert image and target values arrays to 
+            tensors.
+            Image tensor will be normalized to [0,1].
     """
 
     def __init__(
             self, root, annFile,
-            transform=None, target_transform=None, transforms=None):
+            transform=None, target_transform=None, transforms=None,
+            as_tensors=False):
         # call parent's init
         CocoDetection.__init__(
             self, root, annFile, transform, target_transform, transforms)
+        self.as_tensors = as_tensors
 
     def __getitem__(self, index):
         """Return (image, target) tuple.
@@ -98,8 +105,16 @@ class FloorplanDataset(CocoDetection):
         target['area'] = area
         target['iscrowd'] = iscrowd
 
+        # apply transformations on arrays
         if self.transforms is not None:
             img, target = self.transforms(img, target)
+        
+        # convert numpy arrays to tensors
+        if self.as_tensors:
+            img = TF.to_tensor(img)
+
+            for key in target:
+                target[key] = torch.from_numpy(target[key])
 
         return img, target
 
