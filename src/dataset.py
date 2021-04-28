@@ -1,13 +1,5 @@
 """
 Custom PyTorch dataset for instance segmentation.
-
-The expected layout of 'root' directory is as follows:
-  root/
-    images/
-      cute-dog.png
-      puffy-cat.png
-      ...
-    coco-annotations.json
 """
 
 import torch
@@ -22,13 +14,11 @@ class FloorplanDataset(CocoDetection):
         CocoDetection.__init__(
             self, root, annFile, transform, target_transform, transforms)
 
-    def __len__(self):
-        return len(self.ids)
-
     def __getitem__(self, index):
         # load image and annotations at corresponding index
-        img = CocoDetection._load_image(self, index)
-        anns = CocoDetection._load_target(self, index)
+        ID = self.ids[index]
+        img = CocoDetection._load_image(self, ID)
+        anns = CocoDetection._load_target(self, ID)
 
         # construct stuff from annotations list
         boxes = []
@@ -37,7 +27,7 @@ class FloorplanDataset(CocoDetection):
         masks = []
 
         for ann in anns:
-            # bbox
+            # bbox in Pascal VOC format - [x_min, y_min, x_max, y_max]
             # TODO: convert coords to ints?
             x, y, width, height = ann['bbox']
             bbox = [x, y, x+width, y+height]
