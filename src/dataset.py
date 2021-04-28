@@ -2,7 +2,7 @@
 Custom PyTorch dataset for instance segmentation.
 """
 
-import torch
+import numpy as np
 from torchvision.datasets import CocoDetection
 
 
@@ -19,6 +19,8 @@ class FloorplanDataset(CocoDetection):
         ID = self.ids[index]
         img = CocoDetection._load_image(self, ID)
         anns = CocoDetection._load_target(self, ID)
+
+        img = np.array(img)  # (H,W,C) RGB image
 
         # construct stuff from annotations list
         boxes = []
@@ -49,13 +51,13 @@ class FloorplanDataset(CocoDetection):
 
         # essentials
         # TODO: int for coords instead of float?
-        boxes = torch.tensor(boxes, dtype=torch.float)
-        labels = torch.tensor(labels, dtype=torch.int64)
-        masks = torch.tensor(masks, dtype=torch.uint8)
+        boxes = np.array(boxes, dtype=np.float)
+        labels = np.array(labels, dtype=np.int64)
+        masks = np.array(masks, dtype=np.uint8)
         # for evaluation script
-        image_id = torch.tensor(index, dtype=torch.int64)
-        area = torch.tensor(areas, dtype=torch.float)
-        iscrowd = torch.zeros(len(anns), dtype=torch.uint8)
+        image_id = np.array(index, dtype=np.int64)
+        area = np.array(areas, dtype=np.float)
+        iscrowd = np.zeros(len(anns), dtype=np.uint8)
 
         target = {}
         target['boxes'] = boxes
