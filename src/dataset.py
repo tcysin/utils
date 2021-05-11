@@ -14,51 +14,43 @@ class FloorplanDataset(CocoDetection):
     Args:
         root (string): Root directory where images are downloaded to.
         annFile (string): Path to json annotation file.
-        transform (callable, optional): A function/transform that takes in 
-            an image array and returns a transformed version.
-        target_transform (callable, optional): A function/transform that takes 
-            in the target dictionary and transforms it.
-        transforms (callable, optional): A function/transform that takes 
-            image array and its target dictrionary as entry and returns a 
-            transformed version.
-        as_tensors (bool): whether to convert image and target values arrays to 
-            tensors.
+        albumentations (Compose): augmentation pipeline.
+            Must be configured to work with bounding boxes in `pascal_voc`
+            format. `label_fields` parameter must contain `labels` value.
+        as_tensors (bool): whether to convert image and target arrays to tensors.
             Image tensor will be normalized to [0,1].
     """
 
-    def __init__(
-            self, root, annFile,
-            transform=None, target_transform=None, transforms=None,
-            as_tensors=False):
-        # call parent's init
-        CocoDetection.__init__(
-            self, root, annFile, transform, target_transform, transforms)
+    def __init__(self, root, annFile, albumentations=None, as_tensors=False):
+        CocoDetection.__init__(self, root, annFile)
+        self.albumentations = albumentations
         self.as_tensors = as_tensors
 
     def __getitem__(self, index):
-        """Return (image, target) tuple.
+        """Return (img, target) tuple at given index.
 
-        Loads image and corresponding annotations, converts them to ndarrays,
-        optionally applies transformations.
+        Loads image and corresponding annotations, optionally applies
+        transformations, converts the results to ndarrays and optionally 
+        transfers them to tensors.
 
         Returns:
-            image (ndarray): (transformed) RGB image array.
+            img (ndarray): (albumented) RGB image array.
                 Has shape (H, W, C). Image is loaded as-is, without additional 
                 normalization / processing.
-            target (dict): (transformed) target dictionary. Fields are:
+            target (dict): (albumented) target dictionary. Fields are:
                 'boxes': (N, 4) float array of bounding boxes.
                 'labels': (N,) int64 array of labels.
                 'masks': (N, H, W) uin8 array of binary {0, 1} masks.
                 'image_id': (1,) int64 array with image id (from annotaions).
                 'area': (N,) float array with bbox areas.              
-            """
+        """
 
         # load image and annotations at corresponding index
-        ID = self.ids[index]
-        img = CocoDetection._load_image(self, ID)
-        anns = CocoDetection._load_target(self, ID)
+        id_ = self.ids[index]
+        img = CocoDetection._load_image(self, id_)
+        anns = CocoDetection._load_target(self, id_)
 
-        img = np.array(img)  # (H,W,C) RGB image
+        img = np.array(img)  # (H,W,C) RGB image array
 
         # construct stuff from annotations list
         boxes = []
@@ -67,35 +59,42 @@ class FloorplanDataset(CocoDetection):
         masks = []
 
         for ann in anns:
-            # bbox in Pascal VOC format - [x_min, y_min, x_max, y_max]
-            # TODO: convert coords to ints?
+            # bbox in Pascal VOC format -- [x_min, y_min, x_max, y_max]
             x, y, width, height = ann['bbox']
-            bbox = [x, y, x+width, y+height]
+            bbox = [int(x), int(y), int(x + width), int(y + height)]
             boxes.append(bbox)
 
-            # get the room label from category_id
             label = ann['category_id']
             labels.append(label)
 
             # bbox area
-            # TODO: abs()?
-            # TODO: int instead of float for pixels?
-            area = ann['area']
+            area = abs(int(ann['area']))
             areas.append(area)
 
             # construct binary masks using segmentation polygons
             mask = self.coco.annToMask(ann)
             masks.append(mask)
 
-        # essentials
-        # TODO: int for coords instead of float?
+        # if required, apply albumentations on arrays
+        if self.albumentations is not None:
+            albumented = self.albumentations(
+                image=img, masks=masks, bboxes=boxes, labels=labels)
+
+            img = albumented['image']
+            boxes = albumented['bboxes']
+            labels = albumented['labels']
+            masks = albumented['masks']
+            # re-compute areas for new set of masks
+            areas = [np.count_nonzero(mask) for mask in masks]
+
+        # inputs for Mask R-CNN
         boxes = np.array(boxes, dtype=np.float)
         labels = np.array(labels, dtype=np.int64)
         masks = np.array(masks, dtype=np.uint8)
         # for evaluation script
-        image_id = np.array([index], dtype=np.int64)
+        image_id = np.array([id_], dtype=np.int64)
         area = np.array(areas, dtype=np.float)
-        iscrowd = np.zeros(len(anns), dtype=np.uint8)
+        iscrowd = np.zeros(len(boxes), dtype=np.uint8)
 
         target = {}
         target['boxes'] = boxes
@@ -105,10 +104,6 @@ class FloorplanDataset(CocoDetection):
         target['area'] = area
         target['iscrowd'] = iscrowd
 
-        # apply transformations on arrays
-        if self.transforms is not None:
-            img, target = self.transforms(img, target)
-        
         # convert numpy arrays to tensors
         if self.as_tensors:
             img = TF.to_tensor(img)
