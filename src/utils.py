@@ -7,12 +7,12 @@ import cv2 as cv
 
 
 # default padding (px)
-PADDING = 20
+OFFSET = 15
 
 
 def draw_mask(
         img, mask, alpha, color,
-        text=None, font_scale=1, font_thickness=1):
+        text=None, font_scale=1, font_thickness=1, offset=OFFSET):
     """Return image array with segmentation mask drawn on top.
 
     Params:
@@ -53,23 +53,21 @@ def draw_mask(
     result = cv.add(blended_fg, background)
 
     if text is not None:
-        # calculate the center of the mask - stupid way
+        # place the text on top of the mask - upper left corner
         rows, cols = np.nonzero(mask)
-        y0, y1 = np.min(rows), np.max(rows)
-        x0, x1 = np.min(cols), np.max(cols)
-        origin = (x0 + (x1-x0) // 4, (y0 + y1) // 2)
-
+        x0, y0 = np.min(cols), np.min(rows)
+        origin = (x0, y0 - offset)
         result = cv.putText(
             result, text, org=origin,
             fontFace=cv.FONT_HERSHEY_SIMPLEX, fontScale=font_scale,
-            color=(0, 0, 0), thickness=font_thickness)
+            color=color, thickness=font_thickness)
 
     return result
 
 
 def draw_bboxes(
         img, boxes, scores=None, color=(0, 255, 0), thickness=2,
-        font_scale=1, font_thickness=1):
+        font_scale=1, font_thickness=1, offset=OFFSET):
     """Return image with bounding boxes drawn on top of it.
 
     Params:
@@ -86,6 +84,8 @@ def draw_bboxes(
         uint8 BGR image array with bboxes.
     """
 
+    offset = offset + thickness
+
     img = img.copy()
 
     # add original boxes to the image
@@ -97,10 +97,10 @@ def draw_bboxes(
     if scores is not None:
 
         for bbox, score in zip(boxes, scores):
-            x0, *_, y1 = [int(v) for v in bbox]
+            x0, y0, *_  = [int(v) for v in bbox]
 
-            # place text in the lower left corner of the box
-            origin = (x0 + PADDING, y1 - PADDING)
+            # place text on top of the upper left corner of the box
+            origin = (x0, y0 - offset)
 
             img = cv.putText(
                 img, text=str(round(score, 2)), org=origin,
