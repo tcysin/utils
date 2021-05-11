@@ -7,7 +7,7 @@ import cv2 as cv
 
 
 # default padding (px)
-OFFSET = 15
+OFFSET = 2
 
 
 def draw_mask(
