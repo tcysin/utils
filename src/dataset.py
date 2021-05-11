@@ -117,3 +117,8 @@ class FloorplanDataset(CocoDetection):
         """Return category name corresponding to its id."""
         cat = self.coco.loadCats([cat_id])[0]
         return cat['name']
+
+    def img_name(self, img_id):
+        """Return image filename given its id."""
+        img = self.coco.loadImgs([img_id])[0]
+        return img['file_name']
