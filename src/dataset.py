@@ -8,13 +8,13 @@ from torchvision.datasets import CocoDetection
 from torchvision.transforms import functional as TF
 
 
-class FloorplanDataset(CocoDetection):
+class CocoInstanceSegmentation(CocoDetection):
     """Custom dataset for working with instance segmentation tasks.
 
     Args:
         root (string): Root directory where images are downloaded to.
-        annFile (string): Path to json annotation file.
-        albumentations (Compose): augmentation pipeline.
+        annFile (string): Path to COCO annotation file.
+        albumentations (Compose): augmentation pipeline from `albumentations`.
             Must be configured to work with bounding boxes in `pascal_voc`
             format. `label_fields` parameter must contain `labels` value.
         as_tensors (bool): whether to convert image and target arrays to tensors.
