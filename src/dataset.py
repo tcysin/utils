@@ -8,7 +8,7 @@ from torchvision.datasets import CocoDetection
 from torchvision.transforms import functional as TF
 
 
-class CocoInstanceSegmentation(CocoDetection):
+class InstanceSegmentation(CocoDetection):
     """Custom dataset for working with instance segmentation tasks.
 
     Args:
@@ -27,14 +27,14 @@ class CocoInstanceSegmentation(CocoDetection):
         self.as_tensors = as_tensors
 
     def __getitem__(self, index):
-        """Return (img, target) tuple at given index.
+        """Return (image, target) tuple at given index.
 
         Loads image and corresponding annotations, optionally applies
         transformations, converts the results to ndarrays and optionally 
         transfers them to tensors.
 
         Returns:
-            img (ndarray): (albumented) RGB image array.
+            image (ndarray): (albumented) RGB image array.
                 Has shape (H, W, C). Image is loaded as-is, without additional 
                 normalization / processing.
             target (dict): (albumented) target dictionary. Fields are:
@@ -47,10 +47,10 @@ class CocoInstanceSegmentation(CocoDetection):
 
         # load image and annotations at corresponding index
         id_ = self.ids[index]
-        img = CocoDetection._load_image(self, id_)
+        image = CocoDetection._load_image(self, id_)
         anns = CocoDetection._load_target(self, id_)
 
-        img = np.array(img)  # (H,W,C) RGB image array
+        image = np.array(image)  # (H,W,C) RGB image array
 
         # construct stuff from annotations list
         boxes = []
@@ -78,9 +78,9 @@ class CocoInstanceSegmentation(CocoDetection):
         # if required, apply albumentations on arrays
         if self.albumentations is not None:
             albumented = self.albumentations(
-                image=img, masks=masks, bboxes=boxes, labels=labels)
+                image=image, masks=masks, bboxes=boxes, labels=labels)
 
-            img = albumented['image']
+            image = albumented['image']
             boxes = albumented['bboxes']
             labels = albumented['labels']
             masks = albumented['masks']
@@ -106,12 +106,12 @@ class CocoInstanceSegmentation(CocoDetection):
 
         # convert numpy arrays to tensors
         if self.as_tensors:
-            img = TF.to_tensor(img)
+            image = TF.to_tensor(image)
 
             for key in target:
                 target[key] = torch.from_numpy(target[key])
 
-        return img, target
+        return image, target
 
     def cat_name(self, cat_id):
         """Return category name corresponding to its id."""
@@ -120,5 +120,5 @@ class CocoInstanceSegmentation(CocoDetection):
 
     def img_name(self, img_id):
         """Return image filename given its id."""
-        img = self.coco.loadImgs([img_id])[0]
-        return img['file_name']
+        image = self.coco.loadImgs([img_id])[0]
+        return image['file_name']
