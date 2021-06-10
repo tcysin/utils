@@ -21,8 +21,12 @@ class InstanceSegmentation(CocoDetection):
             Image tensor will be normalized to [0,1].
     """
 
-    def __init__(self, root, annFile, albumentations=None, as_tensors=False):
-        CocoDetection.__init__(self, root, annFile)
+    def __init__(
+            self, root, annFile,
+            transform=None, target_transform=None, transforms=None,
+            albumentations=None, as_tensors=False):
+        CocoDetection.__init__(
+            self, root, annFile, transform, target_transform, transforms)
         self.albumentations = albumentations
         self.as_tensors = as_tensors
 
@@ -50,6 +54,10 @@ class InstanceSegmentation(CocoDetection):
         image = CocoDetection._load_image(self, id_)
         anns = CocoDetection._load_target(self, id_)
 
+        # apply transforms on PIL image and Coco annotations list
+        if self.transforms is not None:
+            image, anns = self.transforms(image, anns)
+
         image = np.array(image)  # (H,W,C) RGB image array
 
         # construct stuff from annotations list
@@ -67,7 +75,7 @@ class InstanceSegmentation(CocoDetection):
             label = ann['category_id']
             labels.append(label)
 
-            # bbox area
+            # bbox / mask area
             area = abs(int(ann['area']))
             areas.append(area)
 
