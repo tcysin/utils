@@ -49,6 +49,8 @@ class InstanceSegmentation(CocoDetection):
                 'area': (N,) float array with bbox areas.              
         """
 
+        # TODO generalize for both object detection and instance segmentation?
+
         # load image and annotations at corresponding index
         id_ = self.ids[index]
         image = CocoDetection._load_image(self, id_)
@@ -101,7 +103,7 @@ class InstanceSegmentation(CocoDetection):
         masks = np.array(masks, dtype=np.uint8)
         # for evaluation script
         image_id = np.array([id_], dtype=np.int64)
-        area = np.array(areas, dtype=np.float)
+        areas = np.array(areas, dtype=np.float)
         iscrowd = np.zeros(len(boxes), dtype=np.uint8)
 
         target = {}
@@ -109,7 +111,7 @@ class InstanceSegmentation(CocoDetection):
         target['labels'] = labels
         target['masks'] = masks
         target['image_id'] = image_id
-        target['area'] = area
+        target['area'] = areas
         target['iscrowd'] = iscrowd
 
         # convert numpy arrays to tensors
