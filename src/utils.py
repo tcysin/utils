@@ -66,7 +66,7 @@ def draw_mask(
     return result
 
 
-def draw_bboxes(
+def draw_boxes(
         image, boxes, thickness=2, color=(0, 255, 0),
         texts=None, font_scale=1, font_thickness=1,
         offset=OFFSET):
