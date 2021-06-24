@@ -103,7 +103,13 @@ def draw_boxes(
         uint8 BGR image array with bboxes.
     """
 
-    # re-calculate offset to take into account bbox thickness
+    image = image.copy()
+
+    # if no texts given, generate IDs for boxes
+    if texts is None:
+        texts = (str(i) for i in range(1, len(boxes)+1))
+    
+    # re-calculate vertical text offset to take into account bbox thickness
     offset = offset + thickness
     
     # set up color cycle
@@ -111,28 +117,19 @@ def draw_boxes(
         colors = (color,)
     color_cycle = cycle(colors)
 
-    image = image.copy()
+    # add boxes and texts to the image
+    for bbox, text, c in zip(boxes, texts, color_cycle):
 
-    # add original boxes to the image
-    for bbox, c in zip(boxes, color_cycle):
+        # draw bounding box
         x0, y0, x1, y1 = [int(v) for v in bbox]
         image = cv.rectangle(image, (x0, y0), (x1, y1), c, thickness)
 
-    # add texts to the image if they are present
-    if texts is not None:
-
-        # re-set color cycle to match text color with border color
-        color_cycle = cycle(colors)
-
-        for bbox, text, c in zip(boxes, texts, color_cycle):
-            x0, y0, *_ = [int(v) for v in bbox]
-
-            # place text on top of the upper left corner of the box
-            origin = (x0, y0 - offset)
-
-            image = cv.putText(
-                image, text=text, org=origin,
-                fontFace=cv.FONT_HERSHEY_SIMPLEX, fontScale=font_scale,
-                color=c, thickness=font_thickness)
+        # draw text
+        # place text on top of the upper left corner of the box
+        origin = (x0, y0 - offset)
+        image = cv.putText(
+            image, text=text, org=origin,
+            fontFace=cv.FONT_HERSHEY_SIMPLEX, fontScale=font_scale,
+            color=c, thickness=font_thickness)
 
     return image
