@@ -2,6 +2,8 @@
 Module with drawing routines for instance segmentation tasks.
 """
 
+from itertools import cycle
+
 import numpy as np
 import cv2 as cv
 
@@ -9,6 +11,18 @@ import cv2 as cv
 # default padding (px)
 OFFSET = 2
 
+# distinct colors in BGR format
+COLORS = (
+    (75, 25, 230),  # red
+    (75, 180, 60),  # green
+    (25, 225, 255),  # yellow
+    (200, 130, 0),  # blue
+    (48, 130, 245),  # orange
+)
+
+# TODO def box2int(box)
+# TODO def extract_foreground(image, mask)
+# TODO def crop_foreground(image, mask)
 
 def draw_mask(
         image, mask, alpha, color,
@@ -67,9 +81,8 @@ def draw_mask(
 
 
 def draw_boxes(
-        image, boxes, thickness=2, color=(0, 255, 0),
-        texts=None, font_scale=1, font_thickness=1,
-        offset=OFFSET):
+        image, boxes, thickness=2, color=(0, 255, 0), colors=None,
+        texts=None, font_scale=1, font_thickness=1, offset=OFFSET):
     """Return image with bounding boxes drawn on top of it.
 
     Params:
@@ -77,7 +90,10 @@ def draw_boxes(
         boxes (list): bounding box coordinates.
             Contains N coordinates, which are [x0, y0, x1, y1].
         thickness (int): thickness (px) of lines that make up the rectangle.
-        color (tuple): BGR.
+        color (tuple): color of bounding box borders in BGR format.
+            Applies this color to all bounding boxes.
+        colors (iterable): BGR color tuples for bounding box borders.
+            If provided, selects colors for consecutive bboxes in a cycle.
         texts (list): N texts for each bbox prediction.
         font_scale (float): factor that multiplies font-specific base size.
         font_thickness (int): thickness (px) of lines to draw text.
@@ -87,19 +103,28 @@ def draw_boxes(
         uint8 BGR image array with bboxes.
     """
 
+    # re-calculate offset to take into account bbox thickness
     offset = offset + thickness
+    
+    # set up color cycle
+    if colors is None:
+        colors = (color,)
+    color_cycle = cycle(colors)
 
     image = image.copy()
 
     # add original boxes to the image
-    for bbox in boxes:
+    for bbox, c in zip(boxes, color_cycle):
         x0, y0, x1, y1 = [int(v) for v in bbox]
-        image = cv.rectangle(image, (x0, y0), (x1, y1), color, thickness)
+        image = cv.rectangle(image, (x0, y0), (x1, y1), c, thickness)
 
     # add texts to the image if they are present
     if texts is not None:
 
-        for bbox, text in zip(boxes, texts):
+        # re-set color cycle to match text color with border color
+        color_cycle = cycle(colors)
+
+        for bbox, text, c in zip(boxes, texts, color_cycle):
             x0, y0, *_ = [int(v) for v in bbox]
 
             # place text on top of the upper left corner of the box
@@ -108,6 +133,6 @@ def draw_boxes(
             image = cv.putText(
                 image, text=text, org=origin,
                 fontFace=cv.FONT_HERSHEY_SIMPLEX, fontScale=font_scale,
-                color=color, thickness=font_thickness)
+                color=c, thickness=font_thickness)
 
     return image
