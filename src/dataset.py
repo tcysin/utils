@@ -53,8 +53,8 @@ class InstanceSegmentation(CocoDetection):
 
         # load image and annotations at corresponding index
         id_ = self.ids[index]
-        image = CocoDetection._load_image(self, id_)
-        anns = CocoDetection._load_target(self, id_)
+        image = self._load_image(id_)
+        anns = self._load_target(id_)
 
         # apply transforms on PIL image and Coco annotations list
         if self.transforms is not None:

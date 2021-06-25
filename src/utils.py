@@ -1,8 +1,8 @@
 """
 Module with drawing routines for instance segmentation tasks.
 """
-
-from itertools import cycle
+import string
+from itertools import count, cycle, islice, product
 
 import numpy as np
 import cv2 as cv
@@ -23,6 +23,7 @@ COLORS = (
 # TODO def box2int(box)
 # TODO def extract_foreground(image, mask)
 # TODO def crop_foreground(image, mask)
+
 
 def draw_mask(
         image, mask, alpha, color,
@@ -80,6 +81,19 @@ def draw_mask(
     return result
 
 
+def ascii_gen():
+    """Generate cartesian products of ascii letters (A B ... AA AB ... )"""
+
+    for r in count(start=1):
+        for tup in product(string.ascii_uppercase, repeat=r):
+            yield ''.join(tup)
+
+
+def ascii_ids(n):
+    """Return a list of n cartesian products of ascii letters."""
+    return list(islice(ascii_gen(), n))
+
+
 def draw_boxes(
         image, boxes, thickness=2, color=(0, 255, 0), colors=None,
         texts=None, font_scale=1, font_thickness=1, offset=OFFSET):
@@ -105,13 +119,17 @@ def draw_boxes(
 
     image = image.copy()
 
-    # if no texts given, generate IDs for boxes
-    if texts is None:
-        texts = (str(i) for i in range(1, len(boxes)+1))
-    
+    # generate IDs and texts for boxes
+    ids = ascii_ids(len(boxes))
+
+    if texts is not None:
+        texts = (f'{_id} {txt}' for _id, txt in zip(ids, texts))
+    else:
+        texts = (str(i) for i in ids)
+
     # re-calculate vertical text offset to take into account bbox thickness
     offset = offset + thickness
-    
+
     # set up color cycle
     if colors is None:
         colors = (color,)
