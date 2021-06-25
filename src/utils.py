@@ -15,9 +15,11 @@ OFFSET = 2
 COLORS = (
     (75, 25, 230),  # red
     (75, 180, 60),  # green
-    (25, 225, 255),  # yellow
     (200, 130, 0),  # blue
     (48, 130, 245),  # orange
+    (230, 50, 240),  # magenta
+    (0, 0, 128),  # maroon
+    (128, 0, 0)  # navy
 )
 
 # TODO def box2int(box)
