@@ -86,7 +86,7 @@ class BaseDataset(CocoDetection):
         # add misc information for PyTorch evaluation scripts
         N = len(target['boxes']) if 'boxes' in target else len(target['masks'])
         target['image_id'] = np.array([id_], dtype=np.int64)
-        target['iscrowd'] = np.zeros(len(N), dtype=np.uint8)
+        target['iscrowd'] = np.zeros(N, dtype=np.uint8)
 
         # convert entires in target to numpy arrays with correct data types
         self._convert_dtypes(target)
@@ -113,7 +113,7 @@ class BaseDataset(CocoDetection):
         target['labels'].append(label)
 
         area = abs(int(annotation['area']))
-        target['areas'].append(area)
+        target['area'].append(area)
 
         self.convert_annotation(annotation, target)
 
@@ -162,7 +162,7 @@ class BaseDataset(CocoDetection):
         if 'masks' in target:
             target['masks'] = np.array(target['masks'], dtype=np.uint8)
 
-        target['areas'] = np.array(target['areas'], dtype=np.float)
+        target['area'] = np.array(target['area'], dtype=np.float)
 
     def category_name(self, category_id):
         """Return category name given its id."""
