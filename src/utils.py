@@ -164,4 +164,4 @@ def area_pascal(box):
     height = y2 - y1
     width = x2 - x1
 
-    return height * width
+    return int(height * width)

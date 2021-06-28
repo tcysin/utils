@@ -153,7 +153,7 @@ class BaseDataset(CocoDetection):
         return image, target
 
     @staticmethod
-    def _convert_dtypes(self, target):
+    def _convert_dtypes(target):
         target['labels'] = np.array(target['labels'], dtype=np.int64)
 
         if 'boxes' in target:
@@ -166,11 +166,13 @@ class BaseDataset(CocoDetection):
 
     def category_name(self, category_id):
         """Return category name given its id."""
+
         cat = self.coco.loadCats([category_id])[0]
         return cat['name']
 
     def image_name(self, image_id):
         """Return image filename given its id."""
+
         image = self.coco.loadImgs([image_id])[0]
         return image['file_name']
 
@@ -178,9 +180,7 @@ class BaseDataset(CocoDetection):
 class InstanceSegmentation(BaseDataset):
 
     def convert_annotation(self, annotation, target):
-        BaseDataset._append_annotation(self, annotation, target)
-
-        # bbox in Pascal VOC format -- [x_min, y_min, x_max, y_max]
+        # convert to bbox in Pascal VOC format -- [x_min, y_min, x_max, y_max]
         x, y, width, height = annotation['bbox']
         box = [int(x), int(y), int(x + width), int(y + height)]
         target['boxes'].append(box)
@@ -193,9 +193,7 @@ class InstanceSegmentation(BaseDataset):
 class ObjectDetection(BaseDataset):
 
     def convert_annotation(self, annotation, target):
-        BaseDataset._append_annotation(self, annotation, target)
-
-        # bbox in Pascal VOC format -- [x_min, y_min, x_max, y_max]
+        # convert to bbox in Pascal VOC format -- [x_min, y_min, x_max, y_max]
         x, y, width, height = annotation['bbox']
         box = [int(x), int(y), int(x + width), int(y + height)]
         target['boxes'].append(box)
