@@ -1,5 +1,5 @@
 """
-Module with drawing routines for instance segmentation tasks.
+Module with various helper routines for instance segmentation tasks.
 """
 import string
 from itertools import count, cycle, islice, product
@@ -154,11 +154,13 @@ def draw_boxes(
 
     return image
 
+
 def area_pascal(box):
     """
     Compute and return the area of the bounding box.
-    
-    The box is in Pascal VOC format: [x_min, y_min, x_max, y_max]."""
+
+    The box is in Pascal VOC format: [x1, y1, x2, y2].
+    """
 
     x1, y1, x2, y2 = box
     height = y2 - y1

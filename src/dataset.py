@@ -77,7 +77,7 @@ class BaseDataset(CocoDetection):
 
         # process Coco annotations and populate target dict
         for ann in anns:
-            self._append_annotation(ann, target)
+            self._add_annotation(ann, target)
 
         # if required, apply albumentations on arrays in target
         if self.albumentations is not None:
@@ -100,13 +100,14 @@ class BaseDataset(CocoDetection):
 
         return image, target
 
-    def _append_annotation(self, annotation, target):
+    def _add_annotation(self, annotation, target):
         """
         Convert Coco annotation to correct format and append to corresponding
         lists in `target` dictionary.
 
-        Converts `label` and `area` parts of Coco annotation, then calls 
-        `self.convert_annotation` method of a child class to convert the rest. 
+        Extracts `label` and `area` parts of Coco annotation, then calls 
+        `self.add_annotation` method of a child class to convert and add 
+        the rest. 
         """
 
         label = annotation['category_id']
@@ -115,14 +116,22 @@ class BaseDataset(CocoDetection):
         area = abs(int(annotation['area']))
         target['area'].append(area)
 
-        self.convert_annotation(annotation, target)
+        self.add_box(annotation, target)
+        self.add_mask(annotation, target)
 
-    def convert_annotation(self, annotation, target):
+    def add_box(self, annotation, target):
         """
-        Override this method in a child class to convert `masks`, `boxes` or
-        both fields and add them to target dictionary.
+        Override this method in a child class to convert bounding box and add
+        it to target dictionary.
         """
-        raise NotImplementedError
+        pass
+    
+    def add_mask(self, annotation, target):
+        """
+        Override this method in a child class to generate binary mask and add
+        it to target dictionary.
+        """
+        pass
 
     def _apply_albumentations(self, image, target):
         # either masks, or boxes or both will be present
@@ -179,12 +188,13 @@ class BaseDataset(CocoDetection):
 
 class InstanceSegmentation(BaseDataset):
 
-    def convert_annotation(self, annotation, target):
+    def add_box(self, annotation, target):
         # convert to bbox in Pascal VOC format -- [x_min, y_min, x_max, y_max]
         x, y, width, height = annotation['bbox']
         box = [int(x), int(y), int(x + width), int(y + height)]
         target['boxes'].append(box)
 
+    def add_mask(self, annotation, target):
         # construct binary masks using segmentation polygons
         mask = self.coco.annToMask(annotation)
         target['masks'].append(mask)
@@ -192,7 +202,7 @@ class InstanceSegmentation(BaseDataset):
 
 class ObjectDetection(BaseDataset):
 
-    def convert_annotation(self, annotation, target):
+    def add_box(self, annotation, target):
         # convert to bbox in Pascal VOC format -- [x_min, y_min, x_max, y_max]
         x, y, width, height = annotation['bbox']
         box = [int(x), int(y), int(x + width), int(y + height)]
