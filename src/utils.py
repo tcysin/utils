@@ -153,3 +153,15 @@ def draw_boxes(
             color=c, thickness=font_thickness)
 
     return image
+
+def area_pascal(box):
+    """
+    Compute and return the area of the bounding box.
+    
+    The box is in Pascal VOC format: [x_min, y_min, x_max, y_max]."""
+
+    x1, y1, x2, y2 = box
+    height = y2 - y1
+    width = x2 - x1
+
+    return height * width

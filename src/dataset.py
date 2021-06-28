@@ -2,21 +2,33 @@
 Custom PyTorch dataset for instance segmentation.
 """
 
+from collections import defaultdict
+
 import numpy as np
 import torch
 from torchvision.datasets import CocoDetection
 from torchvision.transforms import functional as TF
 
+from .utils import area_pascal
 
-class InstanceSegmentation(CocoDetection):
-    """Custom dataset for working with instance segmentation tasks.
+
+class BaseDataset(CocoDetection):
+    """
+    Base class for Coco-style object detection, semantic and instance
+    segmentation datasets.
 
     Args:
         root (string): Root directory where images are downloaded to.
-        annFile (string): Path to COCO annotation file.
+        annFile (string): Path to json annotation file.
+        transform (callable, optional): A function/transform that takes in RGB
+            image array and returns a transformed version.
+        target_transform (callable, optional): A function/transform that takes
+            in a list of Coco annotations and transforms it.
+        transforms (callable, optional): A function/transform that takes input
+            sample and annotations as entry and returns a transformed version.
         albumentations (Compose): augmentation pipeline from `albumentations`.
-            Must be configured to work with bounding boxes in `pascal_voc`
-            format. `label_fields` parameter must contain `labels` value.
+            Must be configured to work with bounding boxes in Pascal VOC
+            format; `label_fields` parameter must contain `labels` value.
         as_tensors (bool): whether to convert image and target arrays to tensors.
             Image tensor will be normalized to [0,1].
     """
@@ -41,78 +53,43 @@ class InstanceSegmentation(CocoDetection):
             image (ndarray): (albumented) RGB image array.
                 Has shape (H, W, C). Image is loaded as-is, without additional 
                 normalization / processing.
-            target (dict): (albumented) target dictionary. Fields are:
-                'boxes': (N, 4) float array of bounding boxes.
-                'labels': (N,) int64 array of labels.
-                'masks': (N, H, W) uin8 array of binary {0, 1} masks.
-                'image_id': (1,) int64 array with image id (from annotaions).
-                'area': (N,) float array with bbox areas.              
+            target (dict): (albumented) target dictionary.
+                Fields depend on the type of problem at hand. See child classes
+                for more info. Possible fields include:
+                    `boxes`: (N, 4) float array of bounding boxes.
+                    `labels`: (N,) int64 array of labels.
+                    `masks`: (N, H, W) uint8 array of binary {0, 1} masks.
+                    `image_id`: (1,) int64 array with image id (from annotaions).
+                    `area`: (N,) float array with bbox areas.              
         """
-
-        # TODO generalize for both object detection and instance segmentation?
 
         # load image and annotations at corresponding index
         id_ = self.ids[index]
-        image = self._load_image(id_)
+        image = np.array(self._load_image(id_))  # (H,W,C) RGB image array
         anns = self._load_target(id_)
 
-        # apply transforms on PIL image and Coco annotations list
+        # apply transforms on RGB image array and Coco annotations list
         if self.transforms is not None:
             image, anns = self.transforms(image, anns)
 
-        image = np.array(image)  # (H,W,C) RGB image array
+        # initialize target dict
+        target = defaultdict(list)
 
-        # construct stuff from annotations list
-        boxes = []
-        labels = []
-        areas = []
-        masks = []
-
+        # process Coco annotations and populate target dict
         for ann in anns:
-            # bbox in Pascal VOC format -- [x_min, y_min, x_max, y_max]
-            x, y, width, height = ann['bbox']
-            bbox = [int(x), int(y), int(x + width), int(y + height)]
-            boxes.append(bbox)
+            self._append_annotation(ann, target)
 
-            label = ann['category_id']
-            labels.append(label)
-
-            # bbox / mask area
-            area = abs(int(ann['area']))
-            areas.append(area)
-
-            # construct binary masks using segmentation polygons
-            mask = self.coco.annToMask(ann)
-            masks.append(mask)
-
-        # if required, apply albumentations on arrays
+        # if required, apply albumentations on arrays in target
         if self.albumentations is not None:
-            albumented = self.albumentations(
-                image=image, masks=masks, bboxes=boxes, labels=labels)
+            image, target = self._apply_albumentations(image, target)
 
-            image = albumented['image']
-            boxes = albumented['bboxes']
-            labels = albumented['labels']
-            masks = albumented['masks']
-            # re-compute areas for new set of masks
-            areas = [np.count_nonzero(mask) for mask in masks]
+        # add misc information for PyTorch evaluation scripts
+        N = len(target['boxes']) if 'boxes' in target else len(target['masks'])
+        target['image_id'] = np.array([id_], dtype=np.int64)
+        target['iscrowd'] = np.zeros(len(N), dtype=np.uint8)
 
-        # inputs for Mask R-CNN
-        boxes = np.array(boxes, dtype=np.float)
-        labels = np.array(labels, dtype=np.int64)
-        masks = np.array(masks, dtype=np.uint8)
-        # for evaluation script
-        image_id = np.array([id_], dtype=np.int64)
-        areas = np.array(areas, dtype=np.float)
-        iscrowd = np.zeros(len(boxes), dtype=np.uint8)
-
-        target = {}
-        target['boxes'] = boxes
-        target['labels'] = labels
-        target['masks'] = masks
-        target['image_id'] = image_id
-        target['area'] = areas
-        target['iscrowd'] = iscrowd
+        # convert entires in target to numpy arrays with correct data types
+        self._convert_dtypes(target)
 
         # convert numpy arrays to tensors
         if self.as_tensors:
@@ -123,12 +100,102 @@ class InstanceSegmentation(CocoDetection):
 
         return image, target
 
-    def cat_name(self, cat_id):
-        """Return category name corresponding to its id."""
-        cat = self.coco.loadCats([cat_id])[0]
+    def _append_annotation(self, annotation, target):
+        """
+        Convert Coco annotation to correct format and append to corresponding
+        lists in `target` dictionary.
+
+        Converts `label` and `area` parts of Coco annotation, then calls 
+        `self.convert_annotation` method of a child class to convert the rest. 
+        """
+
+        label = annotation['category_id']
+        target['labels'].append(label)
+
+        area = abs(int(annotation['area']))
+        target['areas'].append(area)
+
+        self.convert_annotation(annotation, target)
+
+    def convert_annotation(self, annotation, target):
+        """
+        Override this method in a child class to convert `masks`, `boxes` or
+        both fields and add them to target dictionary.
+        """
+        raise NotImplementedError
+
+    def _apply_albumentations(self, image, target):
+        # either masks, or boxes or both will be present
+        masks = target.get('masks')
+        boxes = target.get('boxes')
+        labels = target['labels']
+
+        albumented = self.albumentations(
+            image=image, masks=masks, bboxes=boxes, labels=labels)
+
+        image = albumented['image']
+        masks = albumented.get('masks')
+        boxes = albumented.get('bboxes')
+
+        # re-compute areas for new sets of masks / boxes
+        if masks is not None:
+            target['area'] = [np.count_nonzero(mask) for mask in masks]
+        elif boxes is not None:
+            target['area'] = [area_pascal(box) for box in boxes]
+
+        # update target with new masks, boxes and labels
+        if masks is not None:
+            target['masks'] = masks
+        if boxes is not None:
+            target['boxes'] = boxes
+        target['labels'] = albumented['labels']
+
+        return image, target
+
+    @staticmethod
+    def _convert_dtypes(self, target):
+        target['labels'] = np.array(target['labels'], dtype=np.int64)
+
+        if 'boxes' in target:
+            target['boxes'] = np.array(target['boxes'], dtype=np.float)
+
+        if 'masks' in target:
+            target['masks'] = np.array(target['masks'], dtype=np.uint8)
+
+        target['areas'] = np.array(target['areas'], dtype=np.float)
+
+    def category_name(self, category_id):
+        """Return category name given its id."""
+        cat = self.coco.loadCats([category_id])[0]
         return cat['name']
 
-    def img_name(self, img_id):
+    def image_name(self, image_id):
         """Return image filename given its id."""
-        image = self.coco.loadImgs([img_id])[0]
+        image = self.coco.loadImgs([image_id])[0]
         return image['file_name']
+
+
+class InstanceSegmentation(BaseDataset):
+
+    def convert_annotation(self, annotation, target):
+        BaseDataset._append_annotation(self, annotation, target)
+
+        # bbox in Pascal VOC format -- [x_min, y_min, x_max, y_max]
+        x, y, width, height = annotation['bbox']
+        box = [int(x), int(y), int(x + width), int(y + height)]
+        target['boxes'].append(box)
+
+        # construct binary masks using segmentation polygons
+        mask = self.coco.annToMask(annotation)
+        target['masks'].append(mask)
+
+
+class ObjectDetection(BaseDataset):
+
+    def convert_annotation(self, annotation, target):
+        BaseDataset._append_annotation(self, annotation, target)
+
+        # bbox in Pascal VOC format -- [x_min, y_min, x_max, y_max]
+        x, y, width, height = annotation['bbox']
+        box = [int(x), int(y), int(x + width), int(y + height)]
+        target['boxes'].append(box)
