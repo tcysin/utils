@@ -144,19 +144,19 @@ class BaseDataset(CocoDetection):
             image=image, masks=masks, bboxes=boxes, labels=labels)
 
         image = albumented['image']
-        masks = albumented.get('masks')
-        boxes = albumented.get('bboxes')
+        masks = albumented.get('masks', [])
+        boxes = albumented.get('bboxes', [])
 
         # re-compute areas for new sets of masks / boxes
-        if masks is not None:
+        if len(masks) > 0:
             target['area'] = [np.count_nonzero(mask) for mask in masks]
-        elif boxes is not None:
+        elif len(boxes) > 0:
             target['area'] = [area_pascal(box) for box in boxes]
 
         # update target with new masks, boxes and labels
-        if masks is not None:
+        if len(masks) > 0:
             target['masks'] = masks
-        if boxes is not None:
+        if len(boxes) > 0:
             target['boxes'] = boxes
         target['labels'] = albumented['labels']
 
