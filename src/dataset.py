@@ -26,12 +26,11 @@ class BaseDataset(CocoDetection):
             in a list of Coco annotations and transforms it.
         transforms (callable, optional): A function/transform that takes input
             sample and annotations as entry and returns a transformed version.
-        albumentations (Compose, optional): augmentation pipeline from 
-            `albumentations`.
+        albumentations (Compose): augmentation pipeline from `albumentations`.
             Must be configured to work with bounding boxes in Pascal VOC
             format; `label_fields` parameter must contain `labels` value.
         as_tensors (bool): whether to convert image and target arrays to tensors.
-            Defaults to False. Image tensor will be normalized to [0,1].
+            Image tensor will be normalized to [0,1].
     """
 
     def __init__(
@@ -144,19 +143,19 @@ class BaseDataset(CocoDetection):
             image=image, masks=masks, bboxes=boxes, labels=labels)
 
         image = albumented['image']
-        masks = albumented.get('masks')
-        boxes = albumented.get('bboxes')
+        masks = albumented.get('masks', [])
+        boxes = albumented.get('bboxes', [])
 
         # re-compute areas for new sets of masks / boxes
-        if masks is not None:
+        if len(masks) > 0:
             target['area'] = [np.count_nonzero(mask) for mask in masks]
-        elif boxes is not None:
+        elif len(boxes) > 0:
             target['area'] = [area_pascal(box) for box in boxes]
 
         # update target with new masks, boxes and labels
-        if masks is not None:
+        if len(masks) > 0:
             target['masks'] = masks
-        if boxes is not None:
+        if len(boxes) > 0:
             target['boxes'] = boxes
         target['labels'] = albumented['labels']
 
@@ -167,12 +166,12 @@ class BaseDataset(CocoDetection):
         target['labels'] = np.array(target['labels'], dtype=np.int64)
 
         if 'boxes' in target:
-            target['boxes'] = np.array(target['boxes'], dtype=np.float32)
+            target['boxes'] = np.array(target['boxes'], dtype=np.float)
 
         if 'masks' in target:
             target['masks'] = np.array(target['masks'], dtype=np.uint8)
 
-        target['area'] = np.array(target['area'], dtype=np.float32)
+        target['area'] = np.array(target['area'], dtype=np.float)
 
     def category_name(self, category_id):
         """Return category name given its id."""
