@@ -26,11 +26,12 @@ class BaseDataset(CocoDetection):
             in a list of Coco annotations and transforms it.
         transforms (callable, optional): A function/transform that takes input
             sample and annotations as entry and returns a transformed version.
-        albumentations (Compose): augmentation pipeline from `albumentations`.
+        albumentations (Compose, optional): augmentation pipeline from 
+            `albumentations`.
             Must be configured to work with bounding boxes in Pascal VOC
             format; `label_fields` parameter must contain `labels` value.
         as_tensors (bool): whether to convert image and target arrays to tensors.
-            Image tensor will be normalized to [0,1].
+            Defaults to False. Image tensor will be normalized to [0,1].
     """
 
     def __init__(
@@ -166,12 +167,12 @@ class BaseDataset(CocoDetection):
         target['labels'] = np.array(target['labels'], dtype=np.int64)
 
         if 'boxes' in target:
-            target['boxes'] = np.array(target['boxes'], dtype=np.float)
+            target['boxes'] = np.array(target['boxes'], dtype=np.float32)
 
         if 'masks' in target:
             target['masks'] = np.array(target['masks'], dtype=np.uint8)
 
-        target['area'] = np.array(target['area'], dtype=np.float)
+        target['area'] = np.array(target['area'], dtype=np.float32)
 
     def category_name(self, category_id):
         """Return category name given its id."""
