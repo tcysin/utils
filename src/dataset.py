@@ -9,7 +9,7 @@ import torch
 from torchvision.datasets import CocoDetection
 from torchvision.transforms import functional as TF
 
-from .utils import area_pascal
+from .utils import area_pascal, box2int
 
 
 class BaseDataset(CocoDetection):
@@ -125,7 +125,7 @@ class BaseDataset(CocoDetection):
         it to target dictionary.
         """
         pass
-    
+
     def add_mask(self, annotation, target):
         """
         Override this method in a child class to generate binary mask and add
@@ -146,18 +146,18 @@ class BaseDataset(CocoDetection):
         masks = albumented.get('masks')
         boxes = albumented.get('bboxes')
 
+        # update target with new masks, boxes and labels
+        if masks is not None:
+            target['masks'] = masks
+        if boxes is not None:
+            target['boxes'] = [box2int(box) for box in boxes]
+        target['labels'] = albumented['labels']
+
         # re-compute areas for new sets of masks / boxes
         if masks is not None:
             target['area'] = [np.count_nonzero(mask) for mask in masks]
         elif boxes is not None:
             target['area'] = [area_pascal(box) for box in boxes]
-
-        # update target with new masks, boxes and labels
-        if masks is not None:
-            target['masks'] = masks
-        if boxes is not None:
-            target['boxes'] = boxes
-        target['labels'] = albumented['labels']
 
         return image, target
 
@@ -201,6 +201,35 @@ class InstanceSegmentation(BaseDataset):
 
 
 class ObjectDetection(BaseDataset):
+
+    def __init__(
+            self, root, annFile,
+            transform=None, target_transform=None, transforms=None,
+            albumentations=None, as_tensors=False, with_cache=False):
+        BaseDataset.__init__(
+            self, root, annFile, transform, target_transform, transforms,
+            albumentations, as_tensors)
+        # set up image cache
+        self.cache = {} if with_cache else None
+
+    def _load_image(self, id: int):
+
+        # option 1 - with cache
+        if self.cache is not None:
+
+            # if we have it in cache already, return a copy of it
+            if id in self.cache:
+                return self.cache[id]
+
+            # else, we see an image first time: load, cache, return it
+            else:
+                pil_image = BaseDataset._load_image(self, id)
+                self.cache[id] = pil_image
+                return pil_image
+
+        # option 2 - no cache
+        else:
+            return BaseDataset._load_image(self, id)
 
     def add_box(self, annotation, target):
         # convert to bbox in Pascal VOC format -- [x_min, y_min, x_max, y_max]

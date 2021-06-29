@@ -155,6 +155,11 @@ def draw_boxes(
     return image
 
 
+def box2int(box):
+    """Return bounding box with int coordinates."""
+    return [int(coord) for coord in box]
+
+
 def area_pascal(box):
     """
     Compute and return the area of the bounding box.
@@ -162,8 +167,8 @@ def area_pascal(box):
     The box is in Pascal VOC format: [x1, y1, x2, y2].
     """
 
-    x1, y1, x2, y2 = box
+    x1, y1, x2, y2 = box2int(box)
     height = y2 - y1
     width = x2 - x1
 
-    return int(height * width)
+    return height * width
