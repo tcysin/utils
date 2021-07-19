@@ -96,6 +96,7 @@ def ascii_ids(n):
     return list(islice(ascii_gen(), n))
 
 
+# TODO: let user pass a list of colors - one for each box
 def draw_boxes(
         image, boxes, thickness=2, color=(0, 255, 0), colors=None,
         texts=None, font_scale=1, font_thickness=1, offset=OFFSET):
@@ -104,19 +105,22 @@ def draw_boxes(
     Params:
         image (ndarray): uint8 BGR image w. shape (H,W,C).
         boxes (list): bounding box coordinates.
-            Contains N coordinates, which are [x0, y0, x1, y1].
+            Contains N coordinates, which are [x0, y0, x1, y1] - Pascal VOC 
+            format.
         thickness (int): thickness (px) of lines that make up the rectangle.
         color (tuple): color of bounding box borders in BGR format.
             Applies this color to all bounding boxes.
         colors (iterable): BGR color tuples for bounding box borders.
-            If provided, selects colors for consecutive bboxes in a cycle.
+            If provided, selects colors for consecutive boxes in a cycle.
+            Overrides `color` option.
         texts (list): N texts for each bbox prediction.
         font_scale (float): factor that multiplies font-specific base size.
         font_thickness (int): thickness (px) of lines to draw text.
-        offset (int): by how much px to move texts up from bbox. 
+        offset (int): by how much px to move texts up from upper left corner of
+        the box.
 
     Returns:
-        uint8 BGR image array with bboxes.
+        uint8 BGR image array with boxes drawn on top.
     """
 
     image = image.copy()
@@ -129,7 +133,7 @@ def draw_boxes(
     else:
         texts = (str(i) for i in ids)
 
-    # re-calculate vertical text offset to take into account bbox thickness
+    # re-calculate vertical text offset to take into account box thickness
     offset = offset + thickness
 
     # set up color cycle
@@ -138,10 +142,11 @@ def draw_boxes(
     color_cycle = cycle(colors)
 
     # add boxes and texts to the image
-    for bbox, text, c in zip(boxes, texts, color_cycle):
+    for box, text, c in zip(boxes, texts, color_cycle):
 
         # draw bounding box
-        x0, y0, x1, y1 = [int(v) for v in bbox]
+        x0, y0, x1, y1 = box2int(box)
+        # TODO: does rectangle re-use an image or creates a new one?
         image = cv.rectangle(image, (x0, y0), (x1, y1), c, thickness)
 
         # draw text
@@ -156,7 +161,7 @@ def draw_boxes(
 
 
 def box2int(box):
-    """Return bounding box with int coordinates."""
+    """Return Pascal VOC bounding box with int coordinates."""
     return [int(coord) for coord in box]
 
 

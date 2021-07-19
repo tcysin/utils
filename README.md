@@ -1,9 +1,9 @@
 # utils
-Utility package for working with [instance segmentation in PyTorch](
-    https://pytorch.org/tutorials/intermediate/torchvision_tutorial.html).
+Utility package for working with **object detection** problems.
 
-Contains two modules:
+## Content
 
-- `utils` with functions for drawing *bounding boxes* and *segmentation masks*
-- `dataset` with generic *FloorplanDataset*, which extends [torchvision.datasets.CocoDetection](
-    https://pytorch.org/vision/stable/_modules/torchvision/datasets/coco.html#CocoDetection)
+- `utils` module with functions for drawing *bounding boxes* and *segmentation masks*
+- `dataset` module with generic *ObjectDetection* and *InstanceSegmentation* datasets, which extend [torchvision.datasets.CocoDetection](
+    https://pytorch.org/vision/stable/_modules/torchvision/datasets/coco.html#CocoDetection) for 
+    object detection and instance segmentation tasks on Coco data format.
