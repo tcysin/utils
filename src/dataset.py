@@ -202,35 +202,6 @@ class InstanceSegmentation(BaseDataset):
 
 class ObjectDetection(BaseDataset):
 
-    def __init__(
-            self, root, annFile,
-            transform=None, target_transform=None, transforms=None,
-            albumentations=None, as_tensors=False, with_cache=False):
-        BaseDataset.__init__(
-            self, root, annFile, transform, target_transform, transforms,
-            albumentations, as_tensors)
-        # set up image cache
-        self.cache = {} if with_cache else None
-
-    def _load_image(self, id: int):
-
-        # option 1 - with cache
-        if self.cache is not None:
-
-            # if we have it in cache already, return a copy of it
-            if id in self.cache:
-                return self.cache[id]
-
-            # else, we see an image first time: load, cache, return it
-            else:
-                pil_image = BaseDataset._load_image(self, id)
-                self.cache[id] = pil_image
-                return pil_image
-
-        # option 2 - no cache
-        else:
-            return BaseDataset._load_image(self, id)
-
     def add_box(self, annotation, target):
         # convert to bbox in Pascal VOC format -- [x_min, y_min, x_max, y_max]
         x, y, width, height = annotation['bbox']
