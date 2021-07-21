@@ -7,6 +7,8 @@ from itertools import count, cycle, islice, product
 import numpy as np
 import cv2 as cv
 
+# TODO refactor comments according to python PEP
+
 
 # default padding (px)
 OFFSET = 2
@@ -22,7 +24,6 @@ COLORS = (
     (128, 0, 0)  # navy
 )
 
-# TODO def box2int(box)
 # TODO def extract_foreground(image, mask)
 # TODO def crop_foreground(image, mask)
 
@@ -82,21 +83,9 @@ def draw_mask(
 
     return result
 
-
-def ascii_gen():
-    """Generate cartesian products of ascii letters (A B ... AA AB ... )"""
-
-    for r in count(start=1):
-        for tup in product(string.ascii_uppercase, repeat=r):
-            yield ''.join(tup)
-
-
-def ascii_ids(n):
-    """Return a list of n cartesian products of ascii letters."""
-    return list(islice(ascii_gen(), n))
-
-
 # TODO: let user pass a list of colors - one for each box
+
+
 def draw_boxes(
         image, boxes, thickness=2, color=(0, 255, 0), colors=None,
         texts=None, font_scale=1, font_thickness=1, offset=OFFSET):
@@ -158,6 +147,19 @@ def draw_boxes(
             color=c, thickness=font_thickness)
 
     return image
+
+
+def ascii_gen():
+    """Generate cartesian products of ascii letters (A B ... AA AB ... )"""
+
+    for r in count(start=1):
+        for tup in product(string.ascii_uppercase, repeat=r):
+            yield ''.join(tup)
+
+
+def ascii_ids(n):
+    """Return a list of n cartesian products of ascii letters."""
+    return list(islice(ascii_gen(), n))
 
 
 def box2int(box):
