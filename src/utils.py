@@ -8,6 +8,7 @@ import numpy as np
 import cv2 as cv
 
 # TODO refactor comments according to python PEP
+# TODO make a wrapper to convert images to BGR before funcs and to RGB after
 
 
 # default padding (px)
@@ -158,7 +159,7 @@ def ascii_gen():
 
 
 def ascii_ids(n):
-    """Return a list of n cartesian products of ascii letters."""
+    """Return a list of n cartesian products of ASCII letters."""
     return list(islice(ascii_gen(), n))
 
 
@@ -179,3 +180,13 @@ def area_pascal(box):
     width = x2 - x1
 
     return height * width
+
+
+def coco2pascal(box):
+    """Convert bounding box coordinates from Coco format to Pascal VOC.
+
+    Go from [x, y, width, height] to [x1, y1, x2, y2].
+    """
+
+    x, y, width, height = box
+    return [x, y, x + width, y + height]
