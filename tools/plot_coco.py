@@ -43,7 +43,7 @@ def plot_coco(src, file, out, suffix='plot', **kwargs):
         boxes = map(box2int, boxes)  # convert to integer coordinates
         boxes = list(boxes)
         # draw boxes on top of an image
-        # TODO draw_boxes works with BGR images, not RGB
+        # TODO: add unique colors for each category
         plot = draw_boxes(image, boxes, **kwargs)
 
         # TODO if needed, iteratively construct and plot segmentation masks
@@ -95,8 +95,8 @@ if __name__ == '__main__':
         '--thickness', type=int, default=5,
         help='thickness (px) of lines that make up the bounding box (default: 5)')
     parser.add_argument(
-        '--color', type=color_tuple, default=(0, 0, 255),
-        help='BGR color tuple for bounding boxes (default: (0,0,255))')
+        '--color', type=color_tuple, default=(75, 25, 230),
+        help='BGR color tuple for bounding boxes (default: (75,25,230))')
     parser.add_argument(
         '--font-scale', type=float, default=1.,
         help='factor that multiplies font-specific base size (default: 1.0)')

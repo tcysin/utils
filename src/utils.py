@@ -49,6 +49,8 @@ def draw_mask(
         uint8 BGR image array with segmentation mask.
     """
 
+    image = cv.cvtColor(image, cv.COLOR_RGB2BGR)
+
     # create opencv-compatible binary mask of a segment and its inverse
     mask = mask.copy()
     mask[mask > 0] = 255
@@ -82,7 +84,7 @@ def draw_mask(
             fontFace=cv.FONT_HERSHEY_SIMPLEX, fontScale=font_scale,
             color=color, thickness=font_thickness)
 
-    return result
+    return cv.cvtColor(result, cv.COLOR_BGR2RGB)
 
 # TODO: let user pass a list of colors - one for each box
 
@@ -93,7 +95,7 @@ def draw_boxes(
     """Return image with bounding boxes drawn on top of it.
 
     Params:
-        image (ndarray): uint8 BGR image w. shape (H,W,C).
+        image (ndarray): uint8 RGB image w. shape (H,W,C).
         boxes (list): bounding box coordinates.
             Contains N coordinates, which are [x0, y0, x1, y1] - Pascal VOC 
             format.
@@ -101,8 +103,8 @@ def draw_boxes(
         color (tuple): color of bounding box borders in BGR format.
             Applies this color to all bounding boxes.
         colors (iterable): BGR color tuples for bounding box borders.
-            If provided, selects colors for consecutive boxes in a cycle.
-            Overrides `color` option.
+            If provided, cycles through this iterable to select colors for 
+            corresponding boxes. Overrides `color` option.
         texts (list): N texts for each bbox prediction.
         font_scale (float): factor that multiplies font-specific base size.
         font_thickness (int): thickness (px) of lines to draw text.
@@ -110,10 +112,10 @@ def draw_boxes(
         the box.
 
     Returns:
-        uint8 BGR image array with boxes drawn on top.
+        uint8 RGB image array with boxes drawn on top.
     """
 
-    image = image.copy()
+    image = cv.cvtColor(image, cv.COLOR_RGB2BGR)
 
     # generate IDs and texts for boxes
     ids = ascii_ids(len(boxes))
@@ -137,17 +139,17 @@ def draw_boxes(
         # draw bounding box
         x0, y0, x1, y1 = box2int(box)
         # TODO: does rectangle re-use an image or creates a new one?
-        image = cv.rectangle(image, (x0, y0), (x1, y1), c, thickness)
+        cv.rectangle(image, (x0, y0), (x1, y1), c, thickness)
 
         # draw text
         # place text on top of the upper left corner of the box
         origin = (x0, y0 - offset)
-        image = cv.putText(
+        cv.putText(
             image, text=text, org=origin,
             fontFace=cv.FONT_HERSHEY_SIMPLEX, fontScale=font_scale,
             color=c, thickness=font_thickness)
 
-    return image
+    return cv.cvtColor(image, cv.COLOR_BGR2RGB)
 
 
 def ascii_gen():
@@ -164,7 +166,7 @@ def ascii_ids(n):
 
 
 def box2int(box):
-    """Return Pascal VOC bounding box with int coordinates."""
+    """Return bounding box with int coordinates."""
     return [int(coord) for coord in box]
 
 
