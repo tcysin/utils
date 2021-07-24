@@ -8,7 +8,7 @@ from _base import load_coco, save_coco
 
 def reset_index(src, dst, verbose=False):
     """
-    Reset indices of images and annotations in given Coco dataset.
+    Reset indices of images, categories and annotations in given Coco dataset.
     
     Args:
         src (Path): JSON file with input Coco dataset.
@@ -62,6 +62,26 @@ def reset_index(src, dst, verbose=False):
         ann['image_id'] = old2new_images[ann['image_id']]
 
     if verbose: print('Image IDs reset.')
+
+
+    # RE-SET CATEGORY IDS
+    # ------------------------------------------------------------------------
+    categories = sorted(categories, key=itemgetter('name'))
+
+    old2new_categories = {
+        category['id']: new_id
+        for (new_id, category) in enumerate(categories, start=1)
+    }
+
+    # re-set IDs in categories
+    for category in categories:
+        category['id'] = old2new_categories[category['id']]
+
+    # re-set category IDs in annotations
+    for ann in annotations:
+        ann['category_id'] = old2new_categories[ann['category_id']]
+
+    if verbose: print('Category IDs reset.')
 
 
     # RE-SET ANNOTATION IDS
