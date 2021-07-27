@@ -91,7 +91,8 @@ def draw_mask(
 
 def draw_boxes(
         image, boxes, thickness=2, color=(0, 255, 0), colors=None,
-        texts=None, font_scale=1, font_thickness=1, offset=OFFSET):
+        texts=None, font_scale=1, font_thickness=1,
+        offset=OFFSET, with_ids=True):
     """Return image with bounding boxes drawn on top of it.
 
     Params:
@@ -109,7 +110,8 @@ def draw_boxes(
         font_scale (float): factor that multiplies font-specific base size.
         font_thickness (int): thickness (px) of lines to draw text.
         offset (int): by how much px to move texts up from upper left corner of
-        the box.
+            the box.
+        with_ids (bool): whether to generate unique ascii IDs for each box.
 
     Returns:
         uint8 RGB image array with boxes drawn on top.
@@ -117,13 +119,16 @@ def draw_boxes(
 
     image = cv.cvtColor(image, cv.COLOR_RGB2BGR)
 
-    # generate IDs and texts for boxes
-    ids = ascii_ids(len(boxes))
+    # generate IDs and texts for boxes if necessary
+    n = len(boxes)
+    ids = ascii_ids(n)
 
     if texts is not None:
-        texts = (f'{_id} {txt}' for _id, txt in zip(ids, texts))
-    else:
+        texts = (f'{id_} {txt}' for id_, txt in zip(ids, texts))
+    elif with_ids:
         texts = (str(i) for i in ids)
+    else:
+        texts = (None,) * n
 
     # re-calculate vertical text offset to take into account box thickness
     offset = offset + thickness
@@ -138,11 +143,10 @@ def draw_boxes(
 
         # draw bounding box
         x0, y0, x1, y1 = box2int(box)
-        # TODO: does rectangle re-use an image or creates a new one?
+        # TODO: does rectangle re-use an image or create a new one?
         cv.rectangle(image, (x0, y0), (x1, y1), c, thickness)
 
-        # draw text
-        # place text on top of the upper left corner of the box
+        # draw text and place it on top of the upper left corner of the box
         origin = (x0, y0 - offset)
         cv.putText(
             image, text=text, org=origin,
