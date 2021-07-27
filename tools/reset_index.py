@@ -9,7 +9,7 @@ from _base import load_coco, save_coco
 def reset_index(src, dst, verbose=False):
     """
     Reset indices of images, categories and annotations in given Coco dataset.
-    
+
     Args:
         src (Path): JSON file with input Coco dataset.
         dst (Path): destination for new Coco dataset.
@@ -25,7 +25,6 @@ def reset_index(src, dst, verbose=False):
             len(images), 'images,',
             len(annotations), 'annotations.')
 
-
     # FILTER IMAGES & ANNOTATIONS
     # ------------------------------------------------------------------------
     # exclude images without anns and anns without images
@@ -40,7 +39,6 @@ def reset_index(src, dst, verbose=False):
             'After cleaning:',
             len(images), 'images,',
             len(annotations), 'annotations.')
-
 
     # RE-SET IMAGE IDS
     # ------------------------------------------------------------------------
@@ -61,8 +59,8 @@ def reset_index(src, dst, verbose=False):
     for ann in annotations:
         ann['image_id'] = old2new_images[ann['image_id']]
 
-    if verbose: print('Image IDs reset.')
-
+    if verbose:
+        print('Image IDs reset.')
 
     # RE-SET CATEGORY IDS
     # ------------------------------------------------------------------------
@@ -81,13 +79,13 @@ def reset_index(src, dst, verbose=False):
     for ann in annotations:
         ann['category_id'] = old2new_categories[ann['category_id']]
 
-    if verbose: print('Category IDs reset.')
-
+    if verbose:
+        print('Category IDs reset.')
 
     # RE-SET ANNOTATION IDS
     # ------------------------------------------------------------------------
     annotations = sorted(annotations, key=itemgetter('image_id', 'id'))
-    
+
     old2new_anns = {
         ann['id']: new_id
         for (new_id, ann) in enumerate(annotations, start=1)
@@ -96,8 +94,8 @@ def reset_index(src, dst, verbose=False):
     for ann in annotations:
         ann['id'] = old2new_anns[ann['id']]
 
-    if verbose: print('Annotation IDs reset.')
-
+    if verbose:
+        print('Annotation IDs reset.')
 
     # SAVE NEW DATASET
     # ------------------------------------------------------------------------

@@ -15,7 +15,7 @@ def split_coco(src, val, out, verbose=False):
         out (Path): output directory for train and val subsets.
         verbose (bool): output verbosity.
     """
-    
+
     # load json with COCO annotations
     images, annotations, categories, licenses, info = load_coco(src)
 
@@ -55,7 +55,6 @@ def split_coco(src, val, out, verbose=False):
         categories, licenses, info)
     reset_index(dst_train, dst_train)
 
-
     # extract images and anns in validation set, save new val dataset
     images_val = [
         im for im in images
@@ -76,12 +75,11 @@ def split_coco(src, val, out, verbose=False):
         images_val, anns_val,
         categories, licenses, info)
     reset_index(dst_val, dst_val)
-    
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
-        description= 'Split COCO dataset into train and val sets.'
+        description='Split COCO dataset into train and val sets.'
     )
     parser.add_argument(
         'file', type=Path, help='json file with COCO annotations')
@@ -97,9 +95,7 @@ if __name__ == '__main__':
 
     # CHECKS
     if args.out:
-        assert args.out.is_dir(), 'OUT must be a directory' 
+        assert args.out.is_dir(), 'OUT must be a directory'
 
     out = args.out if args.out is not None else args.file.parent
     split_coco(args.file, args.val, out, args.verbose)
-
-    
