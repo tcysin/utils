@@ -1,24 +1,28 @@
 import argparse
 import sys
 from operator import itemgetter
-
-import numpy as np
 from pathlib import Path
-from PIL import Image
-from pycocotools.coco import COCO
-from tqdm import tqdm
-
-# add script's grandparent dir to PYTHONPATH in order to find src module
-home = sys.path[0]  # **/utils/tools/
-parent = Path(home).parent  # **/utils/
-sys.path.append(str(parent))
-
-from src.utils import box2int, coco2pascal, draw_boxes
-
 
 # TODO profile the timing of this script
 
 def plot_coco(src, file, out, suffix='plot', **kwargs):
+    # HEAVY IMPORTS
+    # -------------------------------------------------------------------------
+    import numpy as np
+    from PIL import Image
+    from pycocotools.coco import COCO
+    from tqdm import tqdm
+
+    # add script's grandparent dir to PYTHONPATH in order to find src module
+    home = sys.path[0]  # **/utils/tools/
+    parent = Path(home).parent  # **/utils/
+    sys.path.append(str(parent))
+
+    from src.utils import box2int, coco2pascal, draw_boxes
+
+
+    # FUNCTION BODY
+    # -------------------------------------------------------------------------
     # load COCO dataset
     coco = COCO(file)
 
