@@ -26,6 +26,13 @@ def plot_coco(src, file, out, suffix='plot', **kwargs):
     # load COCO dataset
     coco = COCO(file)
 
+    # create a mapping between category id and name
+    cat_records = coco.loadCats(coco.getCatIds())
+    id2name = {
+        cat['id']: cat['name']
+        for cat in cat_records
+    }
+
     # get the list of image records
     image_records = coco.loadImgs(coco.getImgIds())
 
@@ -40,6 +47,10 @@ def plot_coco(src, file, out, suffix='plot', **kwargs):
         # load a list of annotations for this image
         anns = coco.loadAnns(coco.getAnnIds(imgIds=[record['id']]))
 
+        # get a list of categories
+        cat_ids = map(itemgetter('category_id'), anns)
+        cat_names = [id2name[cat] for cat in cat_ids]
+
         # get a list of boxes in pascal VOC format
         boxes = map(itemgetter('bbox'), anns)
         # convert from Coco to Pascal VOC format
@@ -48,7 +59,7 @@ def plot_coco(src, file, out, suffix='plot', **kwargs):
         boxes = list(boxes)
         # draw boxes on top of an image
         # TODO: add unique colors for each category
-        plot = draw_boxes(image, boxes, **kwargs)
+        plot = draw_boxes(image, boxes, texts=cat_names, **kwargs)
 
         # TODO if needed, iteratively construct and plot segmentation masks
 
