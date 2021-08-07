@@ -1,8 +1,7 @@
 """
 Module with various helper routines for instance segmentation tasks.
 """
-import string
-from itertools import count, cycle, islice, product
+from itertools import cycle
 
 import numpy as np
 import cv2 as cv
@@ -111,7 +110,8 @@ def draw_boxes(
         font_thickness (int): thickness (px) of lines to draw text.
         offset (int): by how much px to move texts up from upper left corner of
             the box.
-        with_ids (bool): whether to generate unique ascii IDs for each box.
+        with_ids (bool): whether to plot IDs for each box.
+            Box ID corresponds to its index in boxes list.
 
     Returns:
         uint8 RGB image array with boxes drawn on top.
@@ -121,14 +121,12 @@ def draw_boxes(
 
     # generate IDs and texts for boxes if necessary
     n = len(boxes)
-    ids = ascii_ids(n)
+    ids = range(n)
 
-    if texts is not None:
+    if texts is None:
+        texts = ('',) * n
+    if with_ids:
         texts = (f'{id_} {txt}' for id_, txt in zip(ids, texts))
-    elif with_ids:
-        texts = (str(i) for i in ids)
-    else:
-        texts = (None,) * n
 
     # re-calculate vertical text offset to take into account box thickness
     offset = offset + thickness
@@ -154,19 +152,6 @@ def draw_boxes(
             color=c, thickness=font_thickness)
 
     return cv.cvtColor(image, cv.COLOR_BGR2RGB)
-
-
-def ascii_gen():
-    """Generate cartesian products of ascii letters (A B ... AA AB ... )"""
-
-    for r in count(start=1):
-        for tup in product(string.ascii_uppercase, repeat=r):
-            yield ''.join(tup)
-
-
-def ascii_ids(n):
-    """Return a list of n cartesian products of ASCII letters."""
-    return list(islice(ascii_gen(), n))
 
 
 def box2int(box):
