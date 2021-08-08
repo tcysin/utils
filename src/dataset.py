@@ -9,7 +9,7 @@ import torch
 from torchvision.datasets import CocoDetection
 from torchvision.transforms import functional as TF
 
-from .utils import area_pascal, box2int
+from .utils import area_pascal, poly2int
 
 
 class BaseDataset(CocoDetection):
@@ -150,7 +150,7 @@ class BaseDataset(CocoDetection):
         if masks is not None:
             target['masks'] = masks
         if boxes is not None:
-            target['boxes'] = [box2int(box) for box in boxes]
+            target['boxes'] = [poly2int(box) for box in boxes]
         target['labels'] = albumented['labels']
 
         # re-compute areas for new sets of masks / boxes

@@ -142,7 +142,7 @@ def draw_boxes(
     for box, text, c in zip(boxes, texts, color_cycle):
 
         # draw bounding box
-        x0, y0, x1, y1 = box2int(box)
+        x0, y0, x1, y1 = poly2int(box)
         # TODO: does rectangle re-use an image or create a new one?
         cv.rectangle(image, (x0, y0), (x1, y1), c, thickness)
 
@@ -169,9 +169,9 @@ def ascii_ids(n):
     return list(islice(ascii_gen(), n))
 
 
-def box2int(box):
-    """Return bounding box with int coordinates."""
-    return [int(coord) for coord in box]
+def poly2int(poly):
+    """Return polygon with int coordinates."""
+    return [int(coord) for coord in poly]
 
 
 def area_pascal(box):
@@ -181,7 +181,7 @@ def area_pascal(box):
     The box is in Pascal VOC format: [x1, y1, x2, y2].
     """
 
-    x1, y1, x2, y2 = box2int(box)
+    x1, y1, x2, y2 = poly2int(box)
     height = y2 - y1
     width = x2 - x1
 
@@ -196,3 +196,12 @@ def coco2pascal(box):
 
     x, y, width, height = box
     return [x, y, x + width, y + height]
+
+def pascal2coco(box):
+    """Convert bounding box coordinates from Pascal VOC format to Coco.
+
+    Go from [x1, y1, x2, y2] to [x, y, width, height].
+    """
+
+    x1, y1, x2, y2 = box
+    return [x1, y1, x2 - x1, y2 - y1]

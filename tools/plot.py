@@ -18,7 +18,7 @@ def plot_coco(src, file, out, suffix='plot', **kwargs):
     parent = Path(home).parent  # **/utils/
     sys.path.append(str(parent))
 
-    from src.utils import box2int, coco2pascal, draw_boxes
+    from src.utils import poly2int, coco2pascal, draw_boxes
 
 
     # FUNCTION BODY
@@ -55,7 +55,7 @@ def plot_coco(src, file, out, suffix='plot', **kwargs):
         boxes = map(itemgetter('bbox'), anns)
         # convert from Coco to Pascal VOC format
         boxes = map(coco2pascal, boxes)
-        boxes = map(box2int, boxes)  # convert to integer coordinates
+        boxes = map(poly2int, boxes)  # convert to integer coordinates
         boxes = list(boxes)
         # draw boxes on top of an image
         # TODO: add unique colors for each category
