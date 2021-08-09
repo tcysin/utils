@@ -3,8 +3,6 @@ import sys
 from operator import itemgetter
 from pathlib import Path
 
-
-
 from _base import load_coco, save_coco
 
 # add script's grandparent dir to PYTHONPATH in order to find src module
@@ -70,8 +68,8 @@ def crop_tight(pil_image, annotations):
         # adjust segmentation polygon coords
         segmentation = map(poly2int, new_ann['segmentation'])
         segmentation = [
-            subtract_from_coords(x_min, y_min, seg)
-            for seg in segmentation
+            subtract_from_coords(x_min, y_min, poly)
+            for poly in segmentation
         ]
         new_ann['segmentation'] = segmentation
 
