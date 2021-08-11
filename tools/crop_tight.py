@@ -1,15 +1,10 @@
 import argparse
 import sys
-from math import inf
+
 from operator import itemgetter
 from pathlib import Path
 
-from _base import load_coco, save_coco
-
-
-def clamp(x, smallest=-inf, largest=inf):
-    """Return x clamped to the [smallest, largest] interval."""
-    return max(smallest, min(x, largest))
+from _base import clamp, load_coco, save_coco
 
 
 def subtract_from_coords(x, y, poly):
@@ -42,7 +37,6 @@ def crop_tight(pil_image, annotations, pad=0):
     sys.path.append(str(parent))
 
     from src.utils import poly2int, coco2pascal
-
 
     # find coordinates for ROI rectangle
     boxes = map(itemgetter('bbox'), annotations)
@@ -153,8 +147,8 @@ if __name__ == '__main__':
         'out', type=Path,
         help='output directory for adjusted images and annotation file')
     parser.add_argument(
-        'pad', type=int, default=0,
-        help='how much padding (px) to apply for final contour (default: 0)'
+        '--pad', type=int, default=0,
+        help='by how much to pad (px) the final contour (default: 0)'
     )
     parser.add_argument(
         '--suffix', default='cropped',

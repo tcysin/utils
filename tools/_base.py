@@ -1,4 +1,10 @@
 import json
+from math import inf
+
+
+def clamp(x, smallest=-inf, largest=inf):
+    """Return x clamped to the [smallest, largest] interval."""
+    return max(smallest, min(x, largest))
 
 
 def load_coco(path):
