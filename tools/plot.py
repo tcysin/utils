@@ -3,7 +3,6 @@ import sys
 from operator import itemgetter
 from pathlib import Path
 
-# TODO profile the timing of this script
 
 def plot_coco(src, file, out, suffix='plot', **kwargs):
     # HEAVY IMPORTS
@@ -19,7 +18,6 @@ def plot_coco(src, file, out, suffix='plot', **kwargs):
     sys.path.append(str(parent))
 
     from src.utils import poly2int, coco2pascal, draw_boxes
-
 
     # FUNCTION BODY
     # -------------------------------------------------------------------------
@@ -123,8 +121,8 @@ if __name__ == '__main__':
 
     plot_coco(
         args.src, args.file, args.out, args.suffix,
-        thickness = args.thickness,
-        color = args.color,
-        font_scale = args.font_scale,
-        font_thickness = args.font_thickness,
+        thickness=args.thickness,
+        color=args.color,
+        font_scale=args.font_scale,
+        font_thickness=args.font_thickness,
     )

@@ -53,7 +53,7 @@ def apartments2camvid(src, file, out, pad=0):
 
             # (optional) adjust coordinates
             x1, y1, x2, y2 = pad_box(
-                [x1,y1,x2,y2], pad, pil_image.height, pil_image.width)
+                [x1, y1, x2, y2], pad, pil_image.height, pil_image.width)
 
             # crop out ROI using coords and save it
             roi = image[y1:y2, x1:x2]
@@ -64,7 +64,7 @@ def apartments2camvid(src, file, out, pad=0):
             mask = coco.annToMask(ann)
             mask = mask[y1:y2, x1:x2]
             # TODO set values to correspond with category_id
-            mask[mask > 0] = 255
+            mask[mask > 0] = 1
             # save the mask
             name_mask = Path(name_roi).stem + '_P.png'
             Image.fromarray(mask).save(LABELS_DIR / name_mask)

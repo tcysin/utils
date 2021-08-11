@@ -6,6 +6,7 @@ def clamp(x, smallest=-inf, largest=inf):
     """Return x clamped to the [smallest, largest] interval."""
     return max(smallest, min(x, largest))
 
+
 def pad_box(box_pascal, pad, height, width):
     """Safely pad bounding box (Pascal VOC) coordinates."""
 
