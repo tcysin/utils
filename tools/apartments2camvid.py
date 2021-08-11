@@ -1,6 +1,8 @@
 import argparse
 from pathlib import Path
 
+from _base import pad_box
+
 
 def apartments2camvid(src, file, out, pad=0):
     """
@@ -45,17 +47,22 @@ def apartments2camvid(src, file, out, pad=0):
         # for each annotation
         for ann in anns:
             # get box coordinates
-            x, y, w, h = map(int, ann['bbox'])
-            # TODO (optional) adjust coordinates
+            x1, y1, w, h = map(int, ann['bbox'])
+            x2 = x1 + w
+            y2 = y1 + h
+
+            # (optional) adjust coordinates
+            x1, y1, x2, y2 = pad_box(
+                [x1,y1,x2,y2], pad, pil_image.height, pil_image.width)
 
             # crop out ROI using coords and save it
-            roi = image[y:y+h, x:x+w]
+            roi = image[y1:y2, x1:x2]
             name_roi = fn.stem + '_' + str(ann['id']) + fn.suffix
             Image.fromarray(roi).save(IMAGES_DIR / name_roi)
 
             # instantiate binary mask, crop it using coords
             mask = coco.annToMask(ann)
-            mask = mask[y:y+h, x:x+w]
+            mask = mask[y1:y2, x1:x2]
             # TODO set values to correspond with category_id
             mask[mask > 0] = 255
             # save the mask
