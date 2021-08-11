@@ -1,20 +1,15 @@
 import argparse
 import sys
+from math import inf
 from operator import itemgetter
 from pathlib import Path
 
 from _base import load_coco, save_coco
 
-# add script's grandparent dir to PYTHONPATH in order to find src module
-home = sys.path[0]  # **/utils/tools/
-parent = Path(home).parent  # **/utils/
-sys.path.append(str(parent))
 
-from src.utils import poly2int, coco2pascal
-
-
-def clip(x):
-    return x if x > 0 else 0
+def clamp(x, smallest=-inf, largest=inf):
+    """Return x clamped to the [smallest, largest] interval."""
+    return max(smallest, min(x, largest))
 
 
 def subtract_from_coords(x, y, poly):
@@ -30,16 +25,24 @@ def subtract_from_coords(x, y, poly):
     for idx, val in enumerate(poly):
         # if even position, then value corresponds to X coordinate
         if idx % 2 == 0:
-            new_poly.append(clip(val - x))
+            new_poly.append(clamp(val - x, smallest=0))
         # otherwise, value corresponds to Y coordinate
         else:
-            new_poly.append(clip(val - y))
+            new_poly.append(clamp(val - y, smallest=0))
 
     return new_poly
 
 
-def crop_tight(pil_image, annotations):
+def crop_tight(pil_image, annotations, pad=0):
     """Crop tight to boxes and return altered image and annotations."""
+
+    # add script's grandparent dir to PYTHONPATH in order to find src module
+    home = sys.path[0]  # **/utils/tools/
+    parent = Path(home).parent  # **/utils/
+    sys.path.append(str(parent))
+
+    from src.utils import poly2int, coco2pascal
+
 
     # find coordinates for ROI rectangle
     boxes = map(itemgetter('bbox'), annotations)
@@ -51,6 +54,11 @@ def crop_tight(pil_image, annotations):
     # lower right corner
     x_max = max(map(itemgetter(2), boxes))
     y_max = max(map(itemgetter(3), boxes))
+    # pad coordinates a little
+    x_min = clamp(x_min - pad, smallest=0)
+    y_min = clamp(y_min - pad, smallest=0)
+    x_max = clamp(x_max + pad, largest=pil_image.width)
+    y_max = clamp(y_max + pad, largest=pil_image.height)
 
     # crop ROI from image using ROI coordinates
     roi = pil_image.crop((x_min, y_min, x_max, y_max))
@@ -79,7 +87,7 @@ def crop_tight(pil_image, annotations):
     return roi, new_annotations
 
 
-def crop_tight_coco(src, file, out, suffix='cropped'):
+def crop_tight_coco(src, file, out, pad=0, suffix='cropped'):
     from PIL import Image
     from pycocotools.coco import COCO
     from tqdm import tqdm
@@ -107,7 +115,7 @@ def crop_tight_coco(src, file, out, suffix='cropped'):
         anns = coco.loadAnns(coco.getAnnIds(imgIds=[record['id']]))
 
         # get cropped image and adjusted annotations
-        roi, anns_cropped = crop_tight(pil_image, anns)
+        roi, anns_cropped = crop_tight(pil_image, anns, pad)
 
         # save cropped image
         name_image = path.stem + '_' + suffix + path.suffix
@@ -145,9 +153,13 @@ if __name__ == '__main__':
         'out', type=Path,
         help='output directory for adjusted images and annotation file')
     parser.add_argument(
+        'pad', type=int, default=0,
+        help='how much padding (px) to apply for final contour (default: 0)'
+    )
+    parser.add_argument(
         '--suffix', default='cropped',
         help='suffix for plot filenames (default: "cropped")')
 
     args = parser.parse_args()
 
-    crop_tight_coco(args.src, args.file, args.out, args.suffix)
+    crop_tight_coco(args.src, args.file, args.out, args.pad, args.suffix)
