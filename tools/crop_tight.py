@@ -4,7 +4,7 @@ import sys
 from operator import itemgetter
 from pathlib import Path
 
-from _base import clamp, load_coco, save_coco
+from _base import clamp, load_coco, pad_box, save_coco
 
 
 def subtract_from_coords(x, y, poly):
@@ -48,11 +48,11 @@ def crop_tight(pil_image, annotations, pad=0):
     # lower right corner
     x_max = max(map(itemgetter(2), boxes))
     y_max = max(map(itemgetter(3), boxes))
+
     # pad coordinates a little
-    x_min = clamp(x_min - pad, smallest=0)
-    y_min = clamp(y_min - pad, smallest=0)
-    x_max = clamp(x_max + pad, largest=pil_image.width)
-    y_max = clamp(y_max + pad, largest=pil_image.height)
+    x_min, y_min, x_max, y_max = pad_box(
+        [x_min, y_min, x_max, y_max], pad, pil_image.height, pil_image.width
+    )
 
     # crop ROI from image using ROI coordinates
     roi = pil_image.crop((x_min, y_min, x_max, y_max))
