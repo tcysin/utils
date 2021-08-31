@@ -1,10 +1,28 @@
 import argparse
 from pathlib import Path
+from random import randrange
 
 from _base import pad_box
 
 
-def apartments2camvid(src, file, out, pad=0):
+def random_side_crop(box_pascal, size):
+	"""
+	Randomly choose a side of a bounding box and crop it by size pixels.
+	"""
+	
+	# each value represents possible adjustment for corresponding coordinate;
+	# corresponding coords: [x1, y1, x2, y2]
+	values = (size, size, -size, -size)
+
+	# randomly choose a coordinate to adjust and corresponding value;
+	# this is similar to randomly picking a side of a box and cropping it
+	i = randrange(4)
+	box_pascal[i] += values[i]
+
+	return box_pascal
+
+
+def apartments2camvid(src, file, out, pad=0, crop=0):
     """
     Extract rectangular ROI and segmentation mask for each apartment.
 
@@ -52,8 +70,11 @@ def apartments2camvid(src, file, out, pad=0):
             y2 = y1 + h
 
             # (optional) adjust coordinates
-            x1, y1, x2, y2 = pad_box(
-                [x1, y1, x2, y2], pad, pil_image.height, pil_image.width)
+            if pad > 0:
+                x1, y1, x2, y2 = pad_box(
+                    [x1, y1, x2, y2], pad, pil_image.height, pil_image.width)
+            elif crop > 0:
+                x1, y1, x2, y2 = random_side_crop([x1, y1, x2, y2], crop)
 
             # crop out ROI using coords and save it
             roi = image[y1:y2, x1:x2]
@@ -89,11 +110,17 @@ if __name__ == '__main__':
     parser.add_argument(
         'out', type=Path,
         help='output directory for resulting images and labels (masks)')
-    parser.add_argument(
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
         '--pad', type=int, default=0,
         help='by how much to pad (px) the final contour (default: 0)'
+    )
+    group.add_argument(
+        '--crop', type=int, default=0,
+        help='by how much to crop (px) random wall of a contour (default: 0)'
     )
 
     args = parser.parse_args()
 
-    apartments2camvid(args.src, args.file, args.out, args.pad)
+    apartments2camvid(
+        args.src, args.file, args.out, args.pad, args.crop)
