@@ -74,7 +74,7 @@ if __name__ == '__main__':
         try:
             x = x[1:-1]  # strip braces
             b, g, r = map(int, x.split(','))  # extract BGR components
-        except:
+        except Exception:
             raise argparse.ArgumentTypeError(
                 'Color tuple must be in (B,G,R) format.')
 
@@ -116,6 +116,9 @@ if __name__ == '__main__':
     parser.add_argument(
         '--font-thickness', type=int, default=1,
         help='thickness (px) of lines to draw text (default: 1)')
+    parser.add_argument(
+        '--with-id', action='store_true', default=False,
+        help='draw generated ids for boxes? (default: False)')
 
     args = parser.parse_args()
 
@@ -125,4 +128,5 @@ if __name__ == '__main__':
         color=args.color,
         font_scale=args.font_scale,
         font_thickness=args.font_thickness,
+        with_ids=args.with_id,
     )

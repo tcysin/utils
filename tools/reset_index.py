@@ -104,7 +104,9 @@ def reset_index(src, dst, verbose=False):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
-        description='Reset image and annotation indices in given Coco dataset.'
+        description='Reset image and annotation indices in given Coco dataset. '
+        'Filters out images without annotations and annotations without images, '
+        'sorts and re-sets image, category and annotation IDs.'
     )
     parser.add_argument(
         'file', type=Path, help='json file with COCO annotations')

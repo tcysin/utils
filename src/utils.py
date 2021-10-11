@@ -6,7 +6,6 @@ from itertools import cycle
 import numpy as np
 import cv2 as cv
 
-# TODO refactor comments according to python PEP
 # TODO make a wrapper to convert images to BGR before funcs and to RGB after
 
 
@@ -21,7 +20,7 @@ COLORS = (
     (48, 130, 245),  # orange
     (230, 50, 240),  # magenta
     (0, 0, 128),  # maroon
-    (128, 0, 0)  # navy
+    (128, 0, 0),  # navy
 )
 
 # TODO def extract_foreground(image, mask)
@@ -29,8 +28,8 @@ COLORS = (
 
 
 def draw_mask(
-        image, mask, alpha, color,
-        text=None, font_scale=1, font_thickness=1, offset=OFFSET):
+    image, mask, alpha, color, text=None, font_scale=1, font_thickness=1, offset=OFFSET
+):
     """Return image array with segmentation mask drawn on top.
 
     Params:
@@ -68,7 +67,7 @@ def draw_mask(
     c_arr[mask < 255] = 0  # black out background part
 
     # blend segmentation ROI with its color array
-    blended_fg = cv.addWeighted(foreground, alpha, c_arr, 1-alpha, 0)
+    blended_fg = cv.addWeighted(foreground, alpha, c_arr, 1 - alpha, 0)
 
     # put blended patch(es) on original background
     result = cv.add(blended_fg, background)
@@ -79,31 +78,45 @@ def draw_mask(
         x0, y0 = np.min(cols), np.min(rows)
         origin = (x0, y0 - offset)
         result = cv.putText(
-            result, text, org=origin,
-            fontFace=cv.FONT_HERSHEY_SIMPLEX, fontScale=font_scale,
-            color=color, thickness=font_thickness)
+            result,
+            text,
+            org=origin,
+            fontFace=cv.FONT_HERSHEY_SIMPLEX,
+            fontScale=font_scale,
+            color=color,
+            thickness=font_thickness,
+        )
 
     return cv.cvtColor(result, cv.COLOR_BGR2RGB)
+
 
 # TODO: let user pass a list of colors - one for each box
 
 
 def draw_boxes(
-        image, boxes, thickness=2, color=(0, 255, 0), colors=None,
-        texts=None, font_scale=1, font_thickness=1,
-        offset=OFFSET, with_ids=True):
+    image,
+    boxes,
+    thickness=2,
+    color=(0, 255, 0),
+    colors=None,
+    texts=None,
+    font_scale=1,
+    font_thickness=1,
+    offset=OFFSET,
+    with_ids=True,
+):
     """Return image with bounding boxes drawn on top of it.
 
     Params:
         image (ndarray): uint8 RGB image w. shape (H,W,C).
         boxes (list): bounding box coordinates.
-            Contains N coordinates, which are [x0, y0, x1, y1] - Pascal VOC 
+            Contains N coordinates, which are [x0, y0, x1, y1] - Pascal VOC
             format.
         thickness (int): thickness (px) of lines that make up the rectangle.
         color (tuple): color of bounding box borders in BGR format.
             Applies this color to all bounding boxes.
         colors (iterable): BGR color tuples for bounding box borders.
-            If provided, cycles through this iterable to select colors for 
+            If provided, cycles through this iterable to select colors for
             corresponding boxes. Overrides `color` option.
         texts (list): N texts for each bbox prediction.
         font_scale (float): factor that multiplies font-specific base size.
@@ -124,9 +137,9 @@ def draw_boxes(
     ids = range(n)
 
     if texts is None:
-        texts = ('',) * n
+        texts = ("",) * n
     if with_ids:
-        texts = (f'{id_} {txt}' for id_, txt in zip(ids, texts))
+        texts = (f"{id_} {txt}" for id_, txt in zip(ids, texts))
 
     # re-calculate vertical text offset to take into account box thickness
     offset = offset + thickness
@@ -147,9 +160,14 @@ def draw_boxes(
         # draw text and place it on top of the upper left corner of the box
         origin = (x0, y0 - offset)
         cv.putText(
-            image, text=text, org=origin,
-            fontFace=cv.FONT_HERSHEY_SIMPLEX, fontScale=font_scale,
-            color=c, thickness=font_thickness)
+            image,
+            text=text,
+            org=origin,
+            fontFace=cv.FONT_HERSHEY_SIMPLEX,
+            fontScale=font_scale,
+            color=c,
+            thickness=font_thickness,
+        )
 
     return cv.cvtColor(image, cv.COLOR_BGR2RGB)
 
