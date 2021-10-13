@@ -7,7 +7,7 @@ import logging
 from collections import defaultdict
 from copy import deepcopy
 from decimal import Decimal
-from operator import attrgetter
+from enum import IntEnum
 from typing import Any, Iterable, Mapping, Sequence
 
 
@@ -61,9 +61,13 @@ class Room(DigitRegion):
 
 
 class Infobox(Region):
-    # TODO labels for infoboxes are different from labels for rooms
-    # TODO do verification right here
     _indent = 4
+
+    class LABEL(IntEnum):
+        # TODO hard-coded the labels
+        HABITABLE = 0
+        INSIDE = 1
+        TOTAL = 2
 
     def __init__(
         self,
@@ -76,25 +80,53 @@ class Infobox(Region):
         super().__init__(coords, score, label)
         # TODO digit region coordinates are absolute w.r.t. to cropped roi, NOT orig pic
         # TODO verify digit regions are within the infobox
-        self.regions = frozenset(deepcopy(digit_regions))
+        regions = deepcopy(list(digit_regions))
 
         if adjust_regions:
-            self._adjust_regions()
+            self._adjust_regions(regions)
 
-    def _adjust_regions(self):
+        self.habitable = self._get_region(Infobox.LABEL.HABITABLE, regions)
+        self.inside = self._get_region(Infobox.LABEL.INSIDE, regions)
+        self.total = self._get_region(Infobox.LABEL.TOTAL, regions)
+
+    def _adjust_regions(self, digit_regions: Iterable[DigitRegion]):
+        """Translate coordinates of each digit region in-place.
+
+        X-axis and Y-axis translation values come from x_min and y_min
+        coordinates of infobox.
+        """
+
         x_offset, y_offset, *_ = self.coords
 
-        for digit_region in self.regions:
-            x_min, y_min, x_max, y_max = digit_region.coords
-            digit_region.coords = (
+        for region in digit_regions:
+            x_min, y_min, x_max, y_max = region.coords
+            region.coords = (
                 x_min + x_offset,
                 y_min + y_offset,
                 x_max + x_offset,
                 y_max + y_offset,
             )
 
+    @staticmethod
+    def _get_region(label: int, regions: Iterable[DigitRegion]):
+        """
+        Return first region from regions with matching label.
+
+        Return None if no regions match provided label.
+        """
+        # TODO maybe select highest-scoring region?
+
+        for region in regions:
+            if region.label == label:
+                return region
+
+        return None
+
     def __repr__(self):
-        s_rs = ",\n".join(" " * self._indent + repr(r) for r in self.regions)
+        s_rs = ",\n".join(
+            " " * self._indent + repr(r)
+            for r in [self.habitable, self.inside, self.total]
+        )
         s = (
             f"Infobox(coords={self.coords}, score={self.score}, "
             f"label={self.label}, regions=[\n"
@@ -118,6 +150,18 @@ class Apartment:
         self.infobox = infobox
         self.rooms = frozenset(rooms)
 
+    def get_total_m2(self, labels: Iterable[int] = None) -> Decimal:
+        """Return the sum of m2 values for all rooms.
+
+        If labels are provided, return the sum only of those rooms with
+        corresponding labels or zero if no rooms match provided labels.
+        """
+        if labels is not None:
+            labels = set(labels)
+            return sum(room.m2 for room in self.rooms if room.label in labels)
+        else:
+            return sum(room.m2 for room in self.rooms)
+
     def __repr__(self):
         s = "Apartment\n"
         s += " " * self._indent + f"filename: {self.filename}\n"
@@ -138,7 +182,7 @@ class ApartmentChecker:
 
     def __init__(self, cfg: Mapping[str, Any]) -> None:
         self.cfg = cfg
-        self.label2name = self.cfg["thing_classes"]
+        self.label2name = self.cfg["room_classes"]
         self.name2label = {name: label for label, name in enumerate(self.label2name)}
         self.count_range = {
             self.name2label[label_name]: range_pair
@@ -171,15 +215,15 @@ class ApartmentChecker:
             - presence of obligatory space types (entrance, habitable, kitchen, wc)
             - exclusivity
             - required pairs
+            - total m2 areas match between rooms and infobox
         """
 
-        logging.debug(f'checking {apartment.filename}')
-        # TODO maybe make check functions accept some self params instead? easier to test?
+        logging.debug(f"checking {apartment.filename}")
+        # TODO maybe make check functions accept some explicit params instead? easier to test?
         # TODO add debug calls
         # TODO see if you need to add teardown() and wrap this whole thing
         self._setup(apartment)
 
-        # TODO optimize this one?
         id_ok = self.check_id()
         infobox_ok = self.check_infobox()
 
@@ -188,7 +232,8 @@ class ApartmentChecker:
         vals_ok = self.check_vals()
         general_ok = counts_ok and vals_ok
 
-        # obligatory space type (presence) checks TODO any one present
+        # obligatory space type (presence) checks
+        # TODO refactor: all of these test if any one of labels is present
         entrance_present = self.check_entrance()
         habitable_present = self.check_habitable()
         kitchen_spaces_present = self.check_kitchen_spaces()
@@ -199,16 +244,21 @@ class ApartmentChecker:
             and kitchen_spaces_present
             and wc_spaces_present
         )
-        # make sure no extra labels in rooms  # TODO
+        # TODO make sure no extra labels in rooms
 
-        # exclusivity checks  TODO only one of present
+        # exclusivity checks
+        # TODO refactor: if present, only one
         kitchen_space_exclusive_ok = self.check_kitchen_space_exclusive()
         lrwk_exclusive_ok = self.check_lrwk_exclusive()
         exclusivity_ok = kitchen_space_exclusive_ok and lrwk_exclusive_ok
 
-        # required pair checks  TODO either all or none present (not xor)
+        # required pair checks
+        # TODO refactor: either all or none present (not xor)
         kn_and_lr_paired = self.check_kn_lr_paired()  # kn -> lr  TODO
         paired_ok = kn_and_lr_paired
+
+        # check that areas match between rooms and infobox
+        cross_check_ok = self.check_matching_totals()
 
         ok = (
             id_ok
@@ -217,6 +267,7 @@ class ApartmentChecker:
             and spaces_ok
             and exclusivity_ok
             and paired_ok
+            and cross_check_ok
         )
 
         if not ok:
@@ -235,12 +286,12 @@ class ApartmentChecker:
         # value = id_region.value
         # x_min, y_min, x_max, y_max = id_region.coords
 
-        # FIXME TODO min / max id value check
+        # FIXME TODO implement min / max id value check
         range_ok = True
 
-        # TODO area check
+        # TODO implement area check
         # area = (x_max - x_min) * (y_max - y_min)
-        area_ok = True  # area >= 100  # FIXME TODO
+        area_ok = True
 
         return range_ok and area_ok
 
@@ -254,32 +305,29 @@ class ApartmentChecker:
             - range of m2 values
         """
 
-        infobox = self.apartment.infobox
+        habitable = self.apartment.infobox.habitable
+        inside = self.apartment.infobox.inside
+        total = self.apartment.infobox.total
+        present_regions = [i for i in [habitable, inside, total] if i is not None]
 
-        # check num regions: at least 1 and at most 3  TODO put this into config
-        num_regions = len(infobox.regions)
+        # check num regions: at least 1 and at most 3
+        # TODO how about putting this into config?
+        num_regions = len(present_regions)
         length_ok = 0 < num_regions <= 3
         if not length_ok:
             logging.debug(f"infobox not ok: {num_regions} regions")
             return False
 
-        # check uniqueness
-        unique_labels = set(map(attrgetter("label"), infobox.regions))
-        unique_ok = num_regions == len(unique_labels)
-
         # check habitable <= inside <= total
-        regions = sorted(
-            infobox.regions, key=attrgetter("label")
-        )  # put regions in order [habitable, .. inside, .. total, ..]
-        values = [i.value for i in regions]
+        values = [region.value for region in present_regions]
         non_decreasing_ok = non_decreasing(values)
         if not non_decreasing_ok:
             logging.debug(f"infobox not ok: {values} are out of order")
 
-        # TODO check maximum values for DigitRegions
-        vmax_ok = True  # FIXME TODO read vmax area for an apartment from somewhere
+        # TODO implemenbt maximum values check for DigitRegions
+        vmax_ok = True
 
-        return unique_ok and non_decreasing_ok and vmax_ok
+        return non_decreasing_ok and vmax_ok
 
     def check_counts(self) -> bool:
         """
@@ -289,8 +337,6 @@ class ApartmentChecker:
         Note: this check makes sure that counts of detected rooms are within
         limits; it does not check for obligatory presence.
         """
-
-        # TODO re-do with flags and label to name conversions to see whats the problem
 
         for label, count in self.label2counts.items():
             mincount = min(self.count_range[label])
@@ -366,7 +412,6 @@ class ApartmentChecker:
         """
 
         # TODO move definition to config
-        # TODO structure is very similar to other presence checks; refactor?
         kitchen_spaces_ok = (
             self.name2label["kitchen"] in self.label2counts
             or self.name2label["kitchen_niche"] in self.label2counts
@@ -384,7 +429,6 @@ class ApartmentChecker:
         Such rooms include wc and combination of toilet + bathroom.
         """
 
-        # TODO refactor to use check_one_of + check_all
         wc_spaces_ok = self.name2label["wc"] in self.label2counts or (
             self.name2label["bathroom"] in self.label2counts
             and self.name2label["toilet"] in self.label2counts
@@ -403,7 +447,7 @@ class ApartmentChecker:
 
         # TODO we can also add these to config as exclusive sets
         # we are guaranteed to have at least one of three at this point
-        # three-way XOR- only one out of three must be present
+        # only one out of three must be present
         flags = [
             self.name2label["kitchen"] in self.label2counts,
             self.name2label["kitchen_niche"] in self.label2counts,
@@ -451,6 +495,55 @@ class ApartmentChecker:
             logging.debug("not ok: either kitchen_niche or living_room are missing")
 
         return ok
+
+    def check_matching_totals(self) -> bool:
+        """
+        Return True if habitable, inside and total m2 area sums match between
+        rooms and infobox.
+
+        Return False otherwise.
+
+        This should be done after we verified that rooms and infobox are ok by
+        themselves.
+        """
+
+        # at this point, the apartment passed all checks
+        apartment = self.apartment
+        infobox = apartment.infobox
+
+        # TODO better naming conventions (esp habitable / etc.)
+        if infobox.habitable is not None:
+            habitable_names = self.cfg["classes_habitable"]
+            habitable_labels = {self.name2label[name] for name in habitable_names}
+            habitable_m2 = apartment.get_total_m2(habitable_labels)
+            habitable_ok = habitable_m2 == infobox.habitable.value
+            if not habitable_ok:
+                logging.debug(
+                    f"habitable space totals do not match: {habitable_m2} vs {infobox.habitable.value}"
+                )
+                return False
+
+        if infobox.inside is not None:
+            inside_names = self.cfg["classes_inside"]
+            inside_labels = {self.name2label[name] for name in inside_names}
+            inside_m2 = apartment.get_total_m2(inside_labels)
+            inside_ok = inside_m2 == infobox.inside.value
+            if not inside_ok:
+                logging.debug(
+                    f"inside space totals do not match: {inside_m2} vs {infobox.inside.value}"
+                )
+                return False
+
+        if infobox.total is not None:
+            total_m2 = apartment.get_total_m2()
+            total_ok = total_m2 == infobox.total.value
+            if not total_ok:
+                logging.debug(
+                    f"total space totals do not match: {total_m2} vs {infobox.total.value}"
+                )
+                return False
+
+        return True
 
 
 def combine(digits: Sequence[int], symbol_pos: int) -> Decimal:
@@ -514,13 +607,33 @@ if __name__ == "__main__":
             "wardrobe": [0, 6],
             "wc": [0, 10],
         },
-        "thing_classes": [
+        "room_classes": [
             "balcony",
             "bathroom",
             "bedroom",
             "corridor",
             "id",
             "infobox",
+            "kitchen",
+            "kitchen_niche",
+            "laundry",
+            "living_room",
+            "living_room_with_kitchen",
+            "lobby",
+            "storage",
+            "toilet",
+            "wardrobe",
+            "wc",
+        ],
+        "classes_habitable": [
+            "bedroom",
+            "living_room",
+            "living_room_with_kitchen",
+        ],
+        "classes_inside": [
+            "bathroom",
+            "bedroom",
+            "corridor",
             "kitchen",
             "kitchen_niche",
             "laundry",
@@ -565,7 +678,7 @@ if __name__ == "__main__":
             adjust_regions=False,
         ),
         rooms=[
-            Room(coords=(40, 230, 69, 252), score=0.944, label=7, m2=Decimal("4.6")),
+            Room(coords=(40, 230, 69, 252), score=0.944, label=7, m2=Decimal("4.68")),
             Room(
                 coords=(154, 230, 187, 252), score=0.943, label=9, m2=Decimal("10.82")
             ),
@@ -574,11 +687,13 @@ if __name__ == "__main__":
             Room(coords=(54, 54, 81, 74), score=1.0, label=11, m2=Decimal("3.34")),
             Room(coords=(92, 54, 120, 75), score=0.73, label=13, m2=Decimal("1.83")),
             Room(coords=(217, 92, 244, 113), score=0.981, label=3, m2=Decimal("6.01")),
-            Room(coords=(335, 230, 369, 251), score=0.998, label=2, m2=Decimal("12.6")),
+            Room(
+                coords=(335, 230, 369, 251), score=0.998, label=2, m2=Decimal("12.67")
+            ),
         ],
     )
 
     checker = ApartmentChecker(cfg)
 
     checker(apt)
-    print('End')
+    print("End")
