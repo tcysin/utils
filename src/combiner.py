@@ -8,7 +8,10 @@ from collections import defaultdict
 from copy import deepcopy
 from decimal import Decimal
 from enum import IntEnum
-from typing import Any, Iterable, Mapping, Sequence
+from math import isclose
+from typing import Any, Iterable, List, Mapping, Sequence, Union
+
+import pandas as pd
 
 
 class Region:
@@ -90,7 +93,8 @@ class Infobox(Region):
         self.total = self._get_region(Infobox.LABEL.TOTAL, regions)
 
     def _adjust_regions(self, digit_regions: Iterable[DigitRegion]):
-        """Translate coordinates of each digit region in-place.
+        """
+        Translate coordinates of each digit region in-place.
 
         X-axis and Y-axis translation values come from x_min and y_min
         coordinates of infobox.
@@ -143,24 +147,12 @@ class Apartment:
         filename: str,
         id_region: DigitRegion,
         infobox: Infobox,
-        rooms: Iterable[Room] = (),
+        rooms: Iterable[Room],
     ):
         self.filename = filename
         self.id_region = id_region
         self.infobox = infobox
         self.rooms = frozenset(rooms)
-
-    def get_total_m2(self, labels: Iterable[int] = None) -> Decimal:
-        """Return the sum of m2 values for all rooms.
-
-        If labels are provided, return the sum only of those rooms with
-        corresponding labels or zero if no rooms match provided labels.
-        """
-        if labels is not None:
-            labels = set(labels)
-            return sum(room.m2 for room in self.rooms if room.label in labels)
-        else:
-            return sum(room.m2 for room in self.rooms)
 
     def __repr__(self):
         s = "Apartment\n"
@@ -173,14 +165,28 @@ class Apartment:
         return s
 
 
-def non_decreasing(seq: Sequence):
-    return all(x <= y for x, y in zip(seq, seq[1:]))
-
-
 class ApartmentChecker:
-    """Helper class to facilitate apartment checks."""
+    """
+    Helper class to facilitate apartment checks.
+    """
 
     def __init__(self, cfg: Mapping[str, Any]) -> None:
+        """
+        Set up from config dictionary.
+
+        Config dictionary must contain the following keys:
+            - `room_classes` is a mapping between the label and label name
+            - `classes_habitable` is a list of label names which belong to
+                habitable apartment spaces
+            - `classes_inside` is a list of label names which belong to spaces
+                inside the apartment
+            - `count_range` maps label names to a pair of `(mincount, maxcount)`
+                possible total counts for objects with corresponding label
+            - `m2_range` maps label names to a pair of `(minval, maxval)`
+                possible m2 values
+            - `tolerance` describes by how much can m2 totals differ during
+                final comparison; must be a Decimal
+        """
         self.cfg = cfg
         self.label2name = self.cfg["room_classes"]
         self.name2label = {name: label for label, name in enumerate(self.label2name)}
@@ -194,6 +200,13 @@ class ApartmentChecker:
         }
 
     def _setup(self, apartment: Apartment) -> None:
+        """
+        Set up the checker for this apartment.
+
+        Creates `self.label2rooms` and `self.label2counts` mappings for
+        this apartment to facilitate further checks.
+        """
+
         self.apartment = apartment
         label2rooms = defaultdict(list)
 
@@ -230,6 +243,7 @@ class ApartmentChecker:
         # general checks for *detected* objects
         counts_ok = self.check_counts()
         vals_ok = self.check_vals()
+        # TODO include check filter / for allowed rooms
         general_ok = counts_ok and vals_ok
 
         # obligatory space type (presence) checks
@@ -271,9 +285,34 @@ class ApartmentChecker:
         )
 
         if not ok:
-            logging.debug(f"problem with apartment: {apartment}")
+            logging.debug(f"problem with apartment {apartment.filename}")
+        else:
+            logging.debug(f"{apartment.filename} ok")
 
         return ok
+
+    def get_labels(self, label_names: Sequence[str]) -> List[int]:
+        """
+        Return a list of labels corresponding to provided label names.
+
+        Raises KeyError if the label name is missing.
+        """
+        return [self.name2label[name] for name in label_names]
+
+    @staticmethod
+    def get_total_m2(rooms: Iterable[Room], labels: Iterable[int] = None) -> Decimal:
+        """
+        Return the sum of m2 values for rooms.
+
+        If labels are provided, return the sum only of those rooms with
+        corresponding labels or zero if no rooms match provided labels.
+        """
+
+        if labels is not None:
+            labels = set(labels)
+            return sum(room.m2 for room in rooms if room.label in labels)
+        else:
+            return sum(room.m2 for room in rooms)
 
     def check_id(self) -> bool:
         """
@@ -319,7 +358,7 @@ class ApartmentChecker:
             return False
 
         # check habitable <= inside <= total
-        values = [region.value for region in present_regions]
+        values = [habitable.value, inside.value, total.value]
         non_decreasing_ok = non_decreasing(values)
         if not non_decreasing_ok:
             logging.debug(f"infobox not ok: {values} are out of order")
@@ -368,8 +407,10 @@ class ApartmentChecker:
                 m2_ok = minval <= room.m2 <= maxval
 
                 if not m2_ok:
+                    name = self.label2name[label]
                     logging.debug(
-                        f"m2 not ok: label {label}, m2 {room.m2}, range ({minval}, {maxval})"
+                        f"m2 not ok: label {label} [{name}], "
+                        f"m2 {room.m2}, range ({minval}, {maxval})"
                     )
                     return False
 
@@ -510,13 +551,17 @@ class ApartmentChecker:
         # at this point, the apartment passed all checks
         apartment = self.apartment
         infobox = apartment.infobox
+        rooms = apartment.rooms
 
         # TODO better naming conventions (esp habitable / etc.)
         if infobox.habitable is not None:
             habitable_names = self.cfg["classes_habitable"]
-            habitable_labels = {self.name2label[name] for name in habitable_names}
-            habitable_m2 = apartment.get_total_m2(habitable_labels)
-            habitable_ok = habitable_m2 == infobox.habitable.value
+            habitable_labels = self.get_labels(habitable_names)
+            habitable_m2 = self.get_total_m2(rooms, habitable_labels)
+            # TODO isclose converts to floats first; see https://www.python.org/dev/peps/pep-0485/#id15
+            habitable_ok = isclose(
+                habitable_m2, infobox.habitable.value, abs_tol=self.cfg["tolerance"]
+            )
             if not habitable_ok:
                 logging.debug(
                     f"habitable space totals do not match: {habitable_m2} vs {infobox.habitable.value}"
@@ -525,9 +570,11 @@ class ApartmentChecker:
 
         if infobox.inside is not None:
             inside_names = self.cfg["classes_inside"]
-            inside_labels = {self.name2label[name] for name in inside_names}
-            inside_m2 = apartment.get_total_m2(inside_labels)
-            inside_ok = inside_m2 == infobox.inside.value
+            inside_labels = self.get_labels(inside_names)
+            inside_m2 = self.get_total_m2(rooms, inside_labels)
+            inside_ok = isclose(
+                inside_m2, infobox.inside.value, abs_tol=self.cfg["tolerance"]
+            )
             if not inside_ok:
                 logging.debug(
                     f"inside space totals do not match: {inside_m2} vs {infobox.inside.value}"
@@ -535,8 +582,10 @@ class ApartmentChecker:
                 return False
 
         if infobox.total is not None:
-            total_m2 = apartment.get_total_m2()
-            total_ok = total_m2 == infobox.total.value
+            total_m2 = self.get_total_m2(rooms)
+            total_ok = isclose(
+                total_m2, infobox.total.value, abs_tol=self.cfg["tolerance"]
+            )
             if not total_ok:
                 logging.debug(
                     f"total space totals do not match: {total_m2} vs {infobox.total.value}"
@@ -546,7 +595,74 @@ class ApartmentChecker:
         return True
 
 
-def combine(digits: Sequence[int], symbol_pos: int) -> Decimal:
+class ApartmentConverter:
+    """
+    Helper class for conversion of iterable of apartments to pandas DataFrame.
+    """
+
+    def __init__(self, label2name: Mapping[int, str]) -> None:
+        self.label2name = label2name
+
+    def __call__(self, apartments: Iterable[Apartment]) -> pd.DataFrame:
+        """
+        Convert a sequence of apartments into a pandas DataFrame and return it.
+        """
+        # TODO
+        apartment_dicts = []
+
+        for apartment in apartments:
+            d = {}
+
+            if apartment.id_region is not None:
+                d["id"] = apartment.id_region.value
+            else:
+                d["id"] = None
+
+            # TODO infobox classes are hard-coded
+            if apartment.infobox.habitable is not None:
+                d["area_habitable"] = apartment.infobox.habitable.value
+            else:
+                d["area_habitable"] = None
+
+            if apartment.infobox.inside is not None:
+                d["area_inside"] = apartment.infobox.inside.value
+            else:
+                d["area_inside"] = None
+
+            if apartment.infobox.total is not None:
+                d["area_total"] = apartment.infobox.total.value
+            else:
+                d["area_total"] = None
+
+            # convert each room into a pair {label_name: m2}
+            # take care of multiple rooms of with the same label
+            l2rs = defaultdict(list)
+
+            for room in apartment.rooms:
+                l2rs[room.label].append(room.m2)
+
+            for label, m2s in l2rs.items():
+                stem = self.label2name[label]
+
+                for idx, m2 in enumerate(sorted(m2s), start=1):
+                    name = stem + str(idx)
+                    d[name] = m2
+
+            apartment_dicts.append(d)
+
+        df = pd.DataFrame(apartment_dicts)
+
+        return df
+
+
+def non_decreasing(seq: Sequence):
+    """
+    Return True if a sequence is in non-decreasing order, False otherwise.
+    """
+    return all(x <= y for x, y in zip(seq, seq[1:]))
+
+
+def combine(digits: Sequence[int], symbol_pos: int) -> Union[Decimal, None]:
     """
     Combine extracted digits list and symbol position integer into a
     decimal number.
@@ -690,10 +806,38 @@ if __name__ == "__main__":
             Room(
                 coords=(335, 230, 369, 251), score=0.998, label=2, m2=Decimal("12.67")
             ),
+            # FIXME balcony
+            # Room(coords=(13, 42, 33, 89), score=0.73, label=0, m2=Decimal("100.67")),
+            # Room(coords=(13, 42, 33, 89), score=0.73, label=0, m2=Decimal("0.67")),
+            # Room(coords=(13, 42, 33, 89), score=0.73, label=0, m2=Decimal("0.67")),
+            # Room(coords=(13, 42, 33, 89), score=0.73, label=0, m2=Decimal("0.67")),
+            # Room(coords=(13, 42, 33, 89), score=0.73, label=0, m2=Decimal("0.67")),
+            # Room(coords=(13, 42, 33, 89), score=0.73, label=0, m2=Decimal("0.67")),
         ],
     )
 
     checker = ApartmentChecker(cfg)
-
     checker(apt)
+
+    mapping = [
+        "балкон",
+        "ванная",
+        "спальня",
+        "корридор",
+        "id",
+        "инфобокс",
+        "кухня",
+        "кухня-ниша",
+        "прачечная",
+        "гостиная",
+        "гостиная-кухня",
+        "прихожая",
+        "хранилище",
+        "туалет",
+        "гардеробная",
+        "с/у",
+    ]
+    converter = ApartmentConverter(mapping)
+    df = converter([apt, apt, apt, apt])
+
     print("End")
