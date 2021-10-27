@@ -6,10 +6,9 @@ This module contains functionality for working with extracted data
 import logging
 from collections import defaultdict
 from copy import deepcopy
-from decimal import Decimal
 from enum import IntEnum
 from math import isclose
-from typing import Any, Iterable, List, Mapping, Sequence, Union
+from typing import Any, Iterable, List, Mapping, Sequence
 
 import pandas as pd
 
@@ -31,7 +30,7 @@ class DigitRegion(Region):
         coords: Sequence[int],
         score: float,
         label: int,
-        value: Decimal,
+        value: float,
     ):
         super().__init__(coords, score, label)
         self.value = value
@@ -50,7 +49,7 @@ class Room(DigitRegion):
         coords: Sequence[int],
         score: float,
         label: int,
-        m2: Decimal,
+        m2: float,
     ):
         super().__init__(coords, score, label, m2)
         self.m2 = self.value
@@ -185,7 +184,7 @@ class ApartmentChecker:
             - `m2_range` maps label names to a pair of `(minval, maxval)`
                 possible m2 values
             - `tolerance` describes by how much can m2 totals differ during
-                final comparison; must be a Decimal
+                final comparison; must be a float
         """
         self.cfg = cfg
         self.label2name = self.cfg["room_classes"]
@@ -300,7 +299,7 @@ class ApartmentChecker:
         return [self.name2label[name] for name in label_names]
 
     @staticmethod
-    def get_total_m2(rooms: Iterable[Room], labels: Iterable[int] = None) -> Decimal:
+    def get_total_m2(rooms: Iterable[Room], labels: Iterable[int] = None) -> float:
         """
         Return the sum of m2 values for rooms.
 
@@ -544,8 +543,8 @@ class ApartmentChecker:
 
         Return False otherwise.
 
-        This should be done after we verified that rooms and infobox are ok by
-        themselves.
+        This should be done after we verified that rooms and infobox regions
+        are ok themselves.
         """
 
         # at this point, the apartment passed all checks
@@ -662,27 +661,6 @@ def non_decreasing(seq: Sequence):
     return all(x <= y for x, y in zip(seq, seq[1:]))
 
 
-def combine(digits: Sequence[int], symbol_pos: int) -> Union[Decimal, None]:
-    """
-    Combine extracted digits list and symbol position integer into a
-    decimal number.
-
-    Return None if there are no valid digits.
-    """
-
-    digits = [x for x in digits if x != 10]
-
-    if not digits:
-        return None
-
-    if symbol_pos != 0 and symbol_pos < len(digits):
-        digits.insert(symbol_pos, ".")
-
-    s = "".join(map(str, digits))
-
-    return Decimal(s)
-
-
 if __name__ == "__main__":
     logging.basicConfig(
         format="%(asctime)s - %(levelname)s - %(message)s", level=logging.DEBUG
@@ -723,6 +701,7 @@ if __name__ == "__main__":
             "wardrobe": [0, 6],
             "wc": [0, 10],
         },
+        "tolerance": 0.05,
         "room_classes": [
             "balcony",
             "bathroom",
@@ -766,7 +745,7 @@ if __name__ == "__main__":
     # TODO play around with apartment check
     apt = Apartment(
         filename="fg11.jpg",
-        id_region=DigitRegion((226, 486, 301, 514), 0.999, 4, Decimal("7")),
+        id_region=DigitRegion((226, 486, 301, 514), 0.999, 4, float("7")),
         infobox=Infobox(
             coords=(177, 492, 341, 616),
             score=1.0,
@@ -776,43 +755,39 @@ if __name__ == "__main__":
                     coords=(266, 523, 320, 546),
                     score=0.993,
                     label=0,
-                    value=Decimal("35.10"),
+                    value=float("35.10"),
                 ),
                 DigitRegion(
                     coords=(264, 553, 323, 577),
                     score=0.998,
                     label=1,
-                    value=Decimal("53.87"),
+                    value=float("53.87"),
                 ),
                 DigitRegion(
                     coords=(265, 584, 324, 609),
                     score=1.0,
                     label=2,
-                    value=Decimal("53.87"),
+                    value=float("53.87"),
                 ),
             ],
             adjust_regions=False,
         ),
         rooms=[
-            Room(coords=(40, 230, 69, 252), score=0.944, label=7, m2=Decimal("4.68")),
-            Room(
-                coords=(154, 230, 187, 252), score=0.943, label=9, m2=Decimal("10.82")
-            ),
-            Room(coords=(197, 53, 222, 73), score=0.999, label=1, m2=Decimal("2.91")),
-            Room(coords=(333, 113, 364, 135), score=1.0, label=2, m2=Decimal("11.61")),
-            Room(coords=(54, 54, 81, 74), score=1.0, label=11, m2=Decimal("3.34")),
-            Room(coords=(92, 54, 120, 75), score=0.73, label=13, m2=Decimal("1.83")),
-            Room(coords=(217, 92, 244, 113), score=0.981, label=3, m2=Decimal("6.01")),
-            Room(
-                coords=(335, 230, 369, 251), score=0.998, label=2, m2=Decimal("12.67")
-            ),
+            Room(coords=(40, 230, 69, 252), score=0.944, label=7, m2=float("4.68")),
+            Room(coords=(154, 230, 187, 252), score=0.943, label=9, m2=float("10.82")),
+            Room(coords=(197, 53, 222, 73), score=0.999, label=1, m2=float("2.91")),
+            Room(coords=(333, 113, 364, 135), score=1.0, label=2, m2=float("11.61")),
+            Room(coords=(54, 54, 81, 74), score=1.0, label=11, m2=float("3.34")),
+            Room(coords=(92, 54, 120, 75), score=0.73, label=13, m2=float("1.83")),
+            Room(coords=(217, 92, 244, 113), score=0.981, label=3, m2=float("6.01")),
+            Room(coords=(335, 230, 369, 251), score=0.998, label=2, m2=float("12.67")),
             # FIXME balcony
-            # Room(coords=(13, 42, 33, 89), score=0.73, label=0, m2=Decimal("100.67")),
-            # Room(coords=(13, 42, 33, 89), score=0.73, label=0, m2=Decimal("0.67")),
-            # Room(coords=(13, 42, 33, 89), score=0.73, label=0, m2=Decimal("0.67")),
-            # Room(coords=(13, 42, 33, 89), score=0.73, label=0, m2=Decimal("0.67")),
-            # Room(coords=(13, 42, 33, 89), score=0.73, label=0, m2=Decimal("0.67")),
-            # Room(coords=(13, 42, 33, 89), score=0.73, label=0, m2=Decimal("0.67")),
+            # Room(coords=(13, 42, 33, 89), score=0.73, label=0, m2=float("100.67")),
+            # Room(coords=(13, 42, 33, 89), score=0.73, label=0, m2=float("0.67")),
+            # Room(coords=(13, 42, 33, 89), score=0.73, label=0, m2=float("0.67")),
+            # Room(coords=(13, 42, 33, 89), score=0.73, label=0, m2=float("0.67")),
+            # Room(coords=(13, 42, 33, 89), score=0.73, label=0, m2=float("0.67")),
+            # Room(coords=(13, 42, 33, 89), score=0.73, label=0, m2=float("0.67")),
         ],
     )
 
@@ -839,5 +814,6 @@ if __name__ == "__main__":
     ]
     converter = ApartmentConverter(mapping)
     df = converter([apt, apt, apt, apt])
+    df.to_csv("sample.csv")
 
     print("End")
