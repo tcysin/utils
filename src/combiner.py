@@ -13,6 +13,7 @@ from typing import Any, Iterable, List, Mapping, Sequence
 import pandas as pd
 
 
+# TODO comments
 class Region:
     def __init__(self, coords: Sequence[int], score: float, label: int):
         self.coords = tuple(coords)  # (x_min, y_min, x_max, y_max)
@@ -352,7 +353,7 @@ class ApartmentChecker:
             return False
 
         # check habitable <= inside <= total
-        values = [habitable.value, inside.value, total.value]
+        values = [region.value for region in present_regions]
         non_decreasing_ok = non_decreasing(values)
         if not non_decreasing_ok:
             logging.debug(f"infobox not ok: {values} out of order")
