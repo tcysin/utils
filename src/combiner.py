@@ -18,7 +18,6 @@ class Region:
         self.coords = tuple(coords)  # (x_min, y_min, x_max, y_max)
         self.score = score
         self.label = label
-        # TODO boxtype
 
     def __repr__(self):
         return f"Region(coords={self.coords}, score={self.score}, label={self.label})"
@@ -99,6 +98,7 @@ class Infobox(Region):
         coordinates of infobox.
         """
 
+        # TODO maybe refactor to return altered copy of digit_regions?
         x_offset, y_offset, *_ = self.coords
 
         for region in digit_regions:
@@ -230,6 +230,7 @@ class ApartmentChecker:
             - total m2 areas match between rooms and infobox
         """
 
+        # TODO better messages in debug
         logging.debug(f"checking {apartment.filename}")
         # TODO maybe make check functions accept some explicit params instead? easier to test?
         # TODO add debug calls
@@ -241,12 +242,10 @@ class ApartmentChecker:
 
         # general checks for *detected* objects
         counts_ok = self.check_counts()
-        vals_ok = self.check_vals()
-        # TODO include check filter / for allowed rooms
+        vals_ok = self.check_room_values()
         general_ok = counts_ok and vals_ok
 
         # obligatory space type (presence) checks
-        # TODO refactor: all of these test if any one of labels is present
         entrance_present = self.check_entrance()
         habitable_present = self.check_habitable()
         kitchen_spaces_present = self.check_kitchen_spaces()
@@ -260,14 +259,12 @@ class ApartmentChecker:
         # TODO make sure no extra labels in rooms
 
         # exclusivity checks
-        # TODO refactor: if present, only one
         kitchen_space_exclusive_ok = self.check_kitchen_space_exclusive()
         lrwk_exclusive_ok = self.check_lrwk_exclusive()
         exclusivity_ok = kitchen_space_exclusive_ok and lrwk_exclusive_ok
 
         # required pair checks
-        # TODO refactor: either all or none present (not xor)
-        kn_and_lr_paired = self.check_kn_lr_paired()  # kn -> lr  TODO
+        kn_and_lr_paired = self.check_kn_lr_paired()
         paired_ok = kn_and_lr_paired
 
         # check that areas match between rooms and infobox
@@ -283,10 +280,8 @@ class ApartmentChecker:
             and cross_check_ok
         )
 
-        if not ok:
-            logging.debug(f"problem with apartment {apartment.filename}")
-        else:
-            logging.debug(f"{apartment.filename} ok")
+        if ok:
+            logging.debug("ok")
 
         return ok
 
@@ -360,7 +355,7 @@ class ApartmentChecker:
         values = [habitable.value, inside.value, total.value]
         non_decreasing_ok = non_decreasing(values)
         if not non_decreasing_ok:
-            logging.debug(f"infobox not ok: {values} are out of order")
+            logging.debug(f"infobox not ok: {values} out of order")
 
         # TODO implemenbt maximum values check for DigitRegions
         vmax_ok = True
@@ -369,9 +364,9 @@ class ApartmentChecker:
 
     def check_counts(self) -> bool:
         """
-        Return True if counts for each toom type are valid, False otherwise.
+        Return True if counts for each object type are valid, False otherwise.
 
-        For example, there must be between 0 and 2 wardrobes, etc.
+        For example, there must be between 0 and 2 wardrobes, 1 id region. etc.
         Note: this check makes sure that counts of detected rooms are within
         limits; it does not check for obligatory presence.
         """
@@ -391,9 +386,9 @@ class ApartmentChecker:
 
         return True
 
-    def check_vals(self) -> bool:
+    def check_room_values(self) -> bool:
         """
-        Return True if m2 areas for each room are valid, False otherwise.
+        Return True if m2 area values for each room are valid, False otherwise.
 
         For example, a wardrobe must take between 0 and 5 m2, etc.
         """
@@ -547,10 +542,12 @@ class ApartmentChecker:
         are ok themselves.
         """
 
-        # at this point, the apartment passed all checks
+        # at this point, the apartment passed all previous checks
         apartment = self.apartment
         infobox = apartment.infobox
         rooms = apartment.rooms
+
+        habitable_ok, inside_ok, total_ok = False, False, False
 
         # TODO better naming conventions (esp habitable / etc.)
         if infobox.habitable is not None:
@@ -563,9 +560,8 @@ class ApartmentChecker:
             )
             if not habitable_ok:
                 logging.debug(
-                    f"habitable space totals do not match: {habitable_m2} vs {infobox.habitable.value}"
+                    f"habitable spaces totals are not close: {habitable_m2} vs {infobox.habitable.value}"
                 )
-                return False
 
         if infobox.inside is not None:
             inside_names = self.cfg["classes_inside"]
@@ -576,9 +572,8 @@ class ApartmentChecker:
             )
             if not inside_ok:
                 logging.debug(
-                    f"inside space totals do not match: {inside_m2} vs {infobox.inside.value}"
+                    f"inside spaces totals are not close: {inside_m2} vs {infobox.inside.value}"
                 )
-                return False
 
         if infobox.total is not None:
             total_m2 = self.get_total_m2(rooms)
@@ -587,11 +582,10 @@ class ApartmentChecker:
             )
             if not total_ok:
                 logging.debug(
-                    f"total space totals do not match: {total_m2} vs {infobox.total.value}"
+                    f"total spaces totals are not close: {total_m2} vs {infobox.total.value}"
                 )
-                return False
 
-        return True
+        return habitable_ok and inside_ok and total_ok
 
 
 class ApartmentConverter:
@@ -606,7 +600,7 @@ class ApartmentConverter:
         """
         Convert a sequence of apartments into a pandas DataFrame and return it.
         """
-        # TODO
+        # TODO refactor
         apartment_dicts = []
 
         for apartment in apartments:
@@ -814,6 +808,21 @@ if __name__ == "__main__":
     ]
     converter = ApartmentConverter(mapping)
     df = converter([apt, apt, apt, apt])
-    df.to_csv("sample.csv")
+    print(df)
+    # df.to_csv("sample.csv")
 
-    print("End")
+    # print("End")
+    # TODO tests for all major classes
+    # infobox not ok
+    #   num_regions < 0 or >= 3
+    #   not habitable <= inside <= total
+    # counts not ok
+    # room m2 values not ok
+    # entrance
+    # habitable
+    # kitchen spaces
+    # wc spaces
+    # kitchen space exclusive
+    # lrwk exclusive
+    # kn lr paired
+    # matching totals
