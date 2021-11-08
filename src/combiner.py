@@ -6,16 +6,15 @@ This module contains functionality for working with extracted data
 import logging
 from collections import defaultdict
 from copy import deepcopy
-from enum import IntEnum
 from math import isclose
-from typing import Any, Iterable, List, Mapping, Sequence
+from typing import Any, Iterable, Mapping, Sequence, Tuple, Union
 
 import pandas as pd
 
 
 # TODO comments
 class Region:
-    def __init__(self, coords: Sequence[int], score: float, label: int):
+    def __init__(self, coords: Sequence[int], score: float, label: str):
         self.coords = tuple(coords)  # (x_min, y_min, x_max, y_max)
         self.score = score
         self.label = label
@@ -29,8 +28,8 @@ class DigitRegion(Region):
         self,
         coords: Sequence[int],
         score: float,
-        label: int,
-        value: float,
+        label: str,
+        value: Union[float, int],
     ):
         super().__init__(coords, score, label)
         self.value = value
@@ -48,7 +47,7 @@ class Room(DigitRegion):
         self,
         coords: Sequence[int],
         score: float,
-        label: int,
+        label: str,
         m2: float,
     ):
         super().__init__(coords, score, label, m2)
@@ -65,17 +64,11 @@ class Room(DigitRegion):
 class Infobox(Region):
     _indent = 4
 
-    class LABEL(IntEnum):
-        # TODO hard-coded the labels
-        HABITABLE = 0
-        INSIDE = 1
-        TOTAL = 2
-
     def __init__(
         self,
         coords: Sequence[int],
         score: float,
-        label: int,
+        label: str,
         digit_regions: Iterable[DigitRegion] = (),
         adjust_regions=False,
     ):
@@ -87,9 +80,9 @@ class Infobox(Region):
         if adjust_regions:
             self._adjust_regions(regions)
 
-        self.habitable = self._get_region(Infobox.LABEL.HABITABLE, regions)
-        self.inside = self._get_region(Infobox.LABEL.INSIDE, regions)
-        self.total = self._get_region(Infobox.LABEL.TOTAL, regions)
+        self.habitable = self._get_region("habitable", regions)
+        self.inside = self._get_region("inside", regions)
+        self.total = self._get_region("total", regions)
 
     def _adjust_regions(self, digit_regions: Iterable[DigitRegion]):
         """
@@ -99,7 +92,6 @@ class Infobox(Region):
         coordinates of infobox.
         """
 
-        # TODO maybe refactor to return altered copy of digit_regions?
         x_offset, y_offset, *_ = self.coords
 
         for region in digit_regions:
@@ -112,7 +104,7 @@ class Infobox(Region):
             )
 
     @staticmethod
-    def _get_region(label: int, regions: Iterable[DigitRegion]):
+    def _get_region(label: str, regions: Iterable[DigitRegion]):
         """
         Return first region from regions with matching label.
 
@@ -175,29 +167,20 @@ class ApartmentChecker:
         Set up from config dictionary.
 
         Config dictionary must contain the following keys:
-            - `room_classes` is a mapping between the label and label name
-            - `classes_habitable` is a list of label names which belong to
+            - `classes_habitable` is a list of labels which belong to
                 habitable apartment spaces
-            - `classes_inside` is a list of label names which belong to spaces
+            - `classes_inside` is a list of labels which belong to spaces
                 inside the apartment
-            - `count_range` maps label names to a pair of `(mincount, maxcount)`
+            - `count_range` maps labels to a pair of `(mincount, maxcount)`
                 possible total counts for objects with corresponding label
-            - `m2_range` maps label names to a pair of `(minval, maxval)`
+            - `m2_range` maps labels to a pair of `(minval, maxval)`
                 possible m2 values
             - `tolerance` describes by how much can m2 totals differ during
-                final comparison; must be a float
+                final comparison; must be float
         """
         self.cfg = cfg
-        self.label2name = self.cfg["room_classes"]
-        self.name2label = {name: label for label, name in enumerate(self.label2name)}
-        self.count_range = {
-            self.name2label[label_name]: range_pair
-            for label_name, range_pair in cfg["count_range"].items()
-        }
-        self.m2_range = {
-            self.name2label[label_name]: range_pair
-            for label_name, range_pair in cfg["m2_range"].items()
-        }
+        self.count_range: Mapping[str, Tuple[int, int]] = cfg["count_range"]
+        self.m2_range: Mapping[str, Tuple[float, float]] = cfg["m2_range"]
 
     def _setup(self, apartment: Apartment) -> None:
         """
@@ -213,8 +196,8 @@ class ApartmentChecker:
         for room in apartment.rooms:
             label2rooms[room.label].append(room)
 
-        self.label2rooms: Mapping[int, Sequence[Room]] = dict(label2rooms)
-        self.label2counts: Mapping[int, int] = {
+        self.label2rooms: Mapping[str, Sequence[Room]] = dict(label2rooms)
+        self.label2counts: Mapping[str, int] = {
             key: len(val) for key, val in self.label2rooms.items()
         }
 
@@ -286,16 +269,8 @@ class ApartmentChecker:
 
         return ok
 
-    def get_labels(self, label_names: Sequence[str]) -> List[int]:
-        """
-        Return a list of labels corresponding to provided label names.
-
-        Raises KeyError if the label name is missing.
-        """
-        return [self.name2label[name] for name in label_names]
-
     @staticmethod
-    def get_total_m2(rooms: Iterable[Room], labels: Iterable[int] = None) -> float:
+    def get_total_m2(rooms: Iterable[Room], labels: Iterable[str] = None) -> float:
         """
         Return the sum of m2 values for rooms.
 
@@ -320,7 +295,7 @@ class ApartmentChecker:
         # value = id_region.value
         # x_min, y_min, x_max, y_max = id_region.coords
 
-        # FIXME TODO implement min / max id value check
+        # TODO implement min / max id value check
         range_ok = True
 
         # TODO implement area check
@@ -378,9 +353,8 @@ class ApartmentChecker:
             count_ok = mincount <= count <= maxcount
 
             if not count_ok:
-                name = self.label2name[label]
                 logging.debug(
-                    f"count not ok: label {name} [{label}], "
+                    f"count not ok: label [{label}], "
                     f"count {count}, range ({mincount}, {maxcount})"
                 )
                 return False
@@ -402,9 +376,8 @@ class ApartmentChecker:
                 m2_ok = minval <= room.m2 <= maxval
 
                 if not m2_ok:
-                    name = self.label2name[label]
                     logging.debug(
-                        f"m2 not ok: label {label} [{name}], "
+                        f"m2 not ok: label [{label}], "
                         f"m2 {room.m2}, range ({minval}, {maxval})"
                     )
                     return False
@@ -416,7 +389,7 @@ class ApartmentChecker:
         Return True if lobby is present, False otherwise.
         """
 
-        entrance_ok = self.name2label["lobby"] in self.label2counts
+        entrance_ok = "lobby" in self.label2counts
         if not entrance_ok:
             logging.debug("entrance not ok: lobby is missing")
 
@@ -431,9 +404,9 @@ class ApartmentChecker:
 
         # TODO move definition of habitable spaces to config
         habitable_ok = (
-            self.name2label["bedroom"] in self.label2counts
-            or self.name2label["living_room"] in self.label2counts
-            or self.name2label["living_room_with_kitchen"] in self.label2counts
+            "bedroom" in self.label2counts
+            or "living_room" in self.label2counts
+            or "living_room_with_kitchen" in self.label2counts
         )
         if not habitable_ok:
             logging.debug("habitable spaces not ok")
@@ -449,9 +422,9 @@ class ApartmentChecker:
 
         # TODO move definition to config
         kitchen_spaces_ok = (
-            self.name2label["kitchen"] in self.label2counts
-            or self.name2label["kitchen_niche"] in self.label2counts
-            or self.name2label["living_room_with_kitchen"] in self.label2counts
+            "kitchen" in self.label2counts
+            or "kitchen_niche" in self.label2counts
+            or "living_room_with_kitchen" in self.label2counts
         )
         if not kitchen_spaces_ok:
             logging.debug("kitchen spaces not ok")
@@ -465,9 +438,8 @@ class ApartmentChecker:
         Such rooms include wc and combination of toilet + bathroom.
         """
 
-        wc_spaces_ok = self.name2label["wc"] in self.label2counts or (
-            self.name2label["bathroom"] in self.label2counts
-            and self.name2label["toilet"] in self.label2counts
+        wc_spaces_ok = "wc" in self.label2counts or (
+            "bathroom" in self.label2counts and "toilet" in self.label2counts
         )
         if not wc_spaces_ok:
             logging.debug("wc spaces not ok")
@@ -485,9 +457,9 @@ class ApartmentChecker:
         # we are guaranteed to have at least one of three at this point
         # only one out of three must be present
         flags = [
-            self.name2label["kitchen"] in self.label2counts,
-            self.name2label["kitchen_niche"] in self.label2counts,
-            self.name2label["living_room_with_kitchen"] in self.label2counts,
+            "kitchen" in self.label2counts,
+            "kitchen_niche" in self.label2counts,
+            "living_room_with_kitchen" in self.label2counts,
         ]
         ok = sum(flags) == 1
         if not ok:
@@ -503,8 +475,8 @@ class ApartmentChecker:
         """
 
         flags = [
-            self.name2label["living_room_with_kitchen"] in self.label2counts,
-            self.name2label["living_room"] in self.label2counts,
+            "living_room_with_kitchen" in self.label2counts,
+            "living_room" in self.label2counts,
         ]
         ok = sum(flags) != 2
         if not ok:
@@ -523,8 +495,8 @@ class ApartmentChecker:
 
         # either both present or both absent
         flags = [
-            self.name2label["kitchen_niche"] in self.label2counts,
-            self.name2label["living_room"] in self.label2counts,
+            "kitchen_niche" in self.label2counts,
+            "living_room" in self.label2counts,
         ]
         ok = sum(flags) != 1
         if not ok:
@@ -548,14 +520,12 @@ class ApartmentChecker:
         infobox = apartment.infobox
         rooms = apartment.rooms
 
+        # TODO might be missing a type of space total
         habitable_ok, inside_ok, total_ok = False, False, False
 
         # TODO better naming conventions (esp habitable / etc.)
         if infobox.habitable is not None:
-            habitable_names = self.cfg["classes_habitable"]
-            habitable_labels = self.get_labels(habitable_names)
-            habitable_m2 = self.get_total_m2(rooms, habitable_labels)
-            # TODO isclose converts to floats first; see https://www.python.org/dev/peps/pep-0485/#id15
+            habitable_m2 = self.get_total_m2(rooms, self.cfg["classes_habitable"])
             habitable_ok = isclose(
                 habitable_m2, infobox.habitable.value, abs_tol=self.cfg["tolerance"]
             )
@@ -565,9 +535,7 @@ class ApartmentChecker:
                 )
 
         if infobox.inside is not None:
-            inside_names = self.cfg["classes_inside"]
-            inside_labels = self.get_labels(inside_names)
-            inside_m2 = self.get_total_m2(rooms, inside_labels)
+            inside_m2 = self.get_total_m2(rooms, self.cfg["classes_inside"])
             inside_ok = isclose(
                 inside_m2, infobox.inside.value, abs_tol=self.cfg["tolerance"]
             )
@@ -594,24 +562,26 @@ class ApartmentConverter:
     Helper class for conversion of iterable of apartments to pandas DataFrame.
     """
 
-    def __init__(self, label2name: Mapping[int, str]) -> None:
-        self.label2name = label2name
+    def __init__(self, mapper_dict: Mapping[str, str] = {}) -> None:
+        self.mapper_dict = mapper_dict
 
-    def __call__(self, apartments: Iterable[Apartment]) -> pd.DataFrame:
+    def to_df(self, apartments: Iterable[Apartment]) -> pd.DataFrame:
         """
-        Convert a sequence of apartments into a pandas DataFrame and return it.
+        Convert a sequence of apartments into pandas DataFrame and return it.
         """
-        # TODO refactor
+
         apartment_dicts = []
 
         for apartment in apartments:
             d = {}
 
+            # id region
             if apartment.id_region is not None:
                 d["id"] = apartment.id_region.value
             else:
                 d["id"] = None
 
+            # infobox info
             # TODO infobox classes are hard-coded
             if apartment.infobox.habitable is not None:
                 d["area_habitable"] = apartment.infobox.habitable.value
@@ -629,15 +599,17 @@ class ApartmentConverter:
                 d["area_total"] = None
 
             # convert each room into a pair {label_name: m2}
-            # take care of multiple rooms of with the same label
             l2rs = defaultdict(list)
 
             for room in apartment.rooms:
                 l2rs[room.label].append(room.m2)
 
             for label, m2s in l2rs.items():
-                stem = self.label2name[label]
+                # try to map to corresponding label; use original if impossible
+                # TODO feels a bit hacky?
+                stem = self.mapper_dict.get(label, label)
 
+                # take care of multiple rooms with the same label
                 for idx, m2 in enumerate(sorted(m2s), start=1):
                     name = stem + str(idx)
                     d[name] = m2
@@ -697,24 +669,6 @@ if __name__ == "__main__":
             "wc": [0, 10],
         },
         "tolerance": 0.05,
-        "room_classes": [
-            "balcony",
-            "bathroom",
-            "bedroom",
-            "corridor",
-            "id",
-            "infobox",
-            "kitchen",
-            "kitchen_niche",
-            "laundry",
-            "living_room",
-            "living_room_with_kitchen",
-            "lobby",
-            "storage",
-            "toilet",
-            "wardrobe",
-            "wc",
-        ],
         "classes_habitable": [
             "bedroom",
             "living_room",
@@ -740,75 +694,106 @@ if __name__ == "__main__":
     # TODO play around with apartment check
     apt = Apartment(
         filename="fg11.jpg",
-        id_region=DigitRegion((226, 486, 301, 514), 0.999, 4, float("7")),
+        id_region=DigitRegion((226, 486, 301, 514), 0.999, 4, 7),
         infobox=Infobox(
             coords=(177, 492, 341, 616),
             score=1.0,
-            label=5,
+            label="infobox",
             digit_regions=[
                 DigitRegion(
                     coords=(266, 523, 320, 546),
                     score=0.993,
-                    label=0,
+                    label="habitable",
                     value=float("35.10"),
                 ),
                 DigitRegion(
                     coords=(264, 553, 323, 577),
                     score=0.998,
-                    label=1,
+                    label="inside",
                     value=float("53.87"),
                 ),
                 DigitRegion(
                     coords=(265, 584, 324, 609),
                     score=1.0,
-                    label=2,
+                    label="total",
                     value=float("53.87"),
                 ),
             ],
             adjust_regions=False,
         ),
         rooms=[
-            Room(coords=(40, 230, 69, 252), score=0.944, label=7, m2=float("4.68")),
-            Room(coords=(154, 230, 187, 252), score=0.943, label=9, m2=float("10.82")),
-            Room(coords=(197, 53, 222, 73), score=0.999, label=1, m2=float("2.91")),
-            Room(coords=(333, 113, 364, 135), score=1.0, label=2, m2=float("11.61")),
-            Room(coords=(54, 54, 81, 74), score=1.0, label=11, m2=float("3.34")),
-            Room(coords=(92, 54, 120, 75), score=0.73, label=13, m2=float("1.83")),
-            Room(coords=(217, 92, 244, 113), score=0.981, label=3, m2=float("6.01")),
-            Room(coords=(335, 230, 369, 251), score=0.998, label=2, m2=float("12.67")),
-            # FIXME balcony
-            # Room(coords=(13, 42, 33, 89), score=0.73, label=0, m2=float("100.67")),
-            # Room(coords=(13, 42, 33, 89), score=0.73, label=0, m2=float("0.67")),
-            # Room(coords=(13, 42, 33, 89), score=0.73, label=0, m2=float("0.67")),
-            # Room(coords=(13, 42, 33, 89), score=0.73, label=0, m2=float("0.67")),
-            # Room(coords=(13, 42, 33, 89), score=0.73, label=0, m2=float("0.67")),
-            # Room(coords=(13, 42, 33, 89), score=0.73, label=0, m2=float("0.67")),
+            Room(
+                coords=(40, 230, 69, 252),
+                score=0.944,
+                label="kitchen_niche",
+                m2=float("4.68"),
+            ),
+            Room(
+                coords=(154, 230, 187, 252),
+                score=0.943,
+                label="living_room",
+                m2=float("10.82"),
+            ),
+            Room(
+                coords=(197, 53, 222, 73),
+                score=0.999,
+                label="bathroom",
+                m2=float("2.91"),
+            ),
+            Room(
+                coords=(333, 113, 364, 135),
+                score=1.0,
+                label="bedroom",
+                m2=float("11.61"),
+            ),
+            Room(coords=(54, 54, 81, 74), score=1.0, label="lobby", m2=float("3.34")),
+            Room(
+                coords=(92, 54, 120, 75), score=0.73, label="toilet", m2=float("1.83")
+            ),
+            Room(
+                coords=(217, 92, 244, 113),
+                score=0.981,
+                label="corridor",
+                m2=float("6.01"),
+            ),
+            Room(
+                coords=(335, 230, 369, 251),
+                score=0.998,
+                label="bedroom",
+                m2=float("12.67"),
+            ),
+            # Room(coords=(13, 42, 33, 89), score=0.73, label='balcony', m2=float("100.67")),
+            # Room(coords=(13, 42, 33, 89), score=0.73, label='balcony', m2=float("0.67")),
+            # Room(coords=(13, 42, 33, 89), score=0.73, label='balcony', m2=float("0.67")),
+            # Room(coords=(13, 42, 33, 89), score=0.73, label='balcony', m2=float("0.67")),
+            # Room(coords=(13, 42, 33, 89), score=0.73, label='balcony', m2=float("0.67")),
+            # Room(coords=(13, 42, 33, 89), score=0.73, label='balcony', m2=float("0.67")),
+            # Room(coords=(13, 42, 33, 89), score=0.73, label='balcony', m2=float("0.67")),
         ],
     )
 
     checker = ApartmentChecker(cfg)
     checker(apt)
 
-    mapping = [
-        "балкон",
-        "ванная",
-        "спальня",
-        "корридор",
-        "id",
-        "инфобокс",
-        "кухня",
-        "кухня-ниша",
-        "прачечная",
-        "гостиная",
-        "гостиная-кухня",
-        "прихожая",
-        "хранилище",
-        "туалет",
-        "гардеробная",
-        "с/у",
-    ]
-    converter = ApartmentConverter(mapping)
-    df = converter([apt, apt, apt, apt])
+    mapping = {
+        "balcony": "балкон",
+        "bathroom": "ванная",
+        "bedroom": "спальня",
+        "corridor": "корридор",
+        "id": "id",
+        "infobox": "инфобокс",
+        "kitchen": "кухня",
+        "kitchen_niche": "кухня-ниша",
+        "laundry": "прачечная",
+        "living_room": "гостиная",
+        "living_room_with_kitchen": "гостиная-кухня",
+        "lobby": "прихожая",
+        "storage": "хранилище",
+        "toilet": "туалет",
+        "wc": "с/у",
+    }
+    converter = ApartmentConverter()
+    df = converter.to_df([apt, apt, apt, apt])
     print(df)
     # df.to_csv("sample.csv")
 
@@ -827,3 +812,38 @@ if __name__ == "__main__":
     # lrwk exclusive
     # kn lr paired
     # matching totals
+
+    # apartment = Apartment(
+    #     filename="fg149.jpg",
+    #     id_region=DigitRegion(
+    #         coords=(589, 28, 672, 55), score=0.999, label=4, value=17.0
+    #     ),
+    #     infobox=Infobox(
+    #         coords=(548, 30, 694, 156),
+    #         score=1.0,
+    #         label=5,
+    #         digit_regions=[
+    #             DigitRegion(
+    #                 coords=(631, 62, 686, 85), score=0.904, label=0, value=27.5
+    #             ),
+    #             DigitRegion(
+    #                 coords=(631, 62, 686, 85), score=0.904, label=0, value=27.5
+    #             ),
+    #             DigitRegion(
+    #                 coords=(631, 127, 671, 150), score=0.832, label=2, value=44.0
+    #             ),
+    #         ],
+    #     ),
+    #     rooms=[
+    #         Room(coords=(46, 74, 74, 94), score=0.995, label=12, m2=2.54),
+    #         Room(coords=(311, 233, 342, 252), score=0.923, label=2, m2=13.7),
+    #         Room(coords=(311, 231, 341, 252), score=0.512, label=9, m2=13.7),
+    #         Room(coords=(123, 204, 150, 225), score=0.982, label=7, m2=4.79),
+    #         Room(coords=(310, 119, 343, 141), score=0.982, label=2, m2=13.8),
+    #         Room(coords=(125, 74, 152, 93), score=0.994, label=1, m2=2.91),
+    #         Room(coords=(77, 119, 105, 140), score=0.969, label=11, m2=243.0),
+    #     ],
+    # )
+
+    # checker._setup(apartment)
+    # checker.check_infobox()
