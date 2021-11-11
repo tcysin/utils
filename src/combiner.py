@@ -515,8 +515,7 @@ class ApartmentChecker:
         infobox = apartment.infobox
         rooms = apartment.rooms
 
-        # TODO might be missing a type of space total
-        habitable_ok, inside_ok, total_ok = False, False, False
+        flags = []
 
         # TODO better naming conventions (esp habitable / etc.)
         if infobox.habitable is not None:
@@ -526,6 +525,7 @@ class ApartmentChecker:
             )
             if not habitable_ok:
                 self.tags.add("habitable_not_close")
+            flags.append(habitable_ok)
 
         if infobox.inside is not None:
             inside_m2 = self.get_total_m2(rooms, self.cfg["classes_inside"])
@@ -534,6 +534,7 @@ class ApartmentChecker:
             )
             if not inside_ok:
                 self.tags.add("inside_not_close")
+            flags.append(inside_ok)
 
         if infobox.total is not None:
             total_m2 = self.get_total_m2(rooms)
@@ -542,8 +543,9 @@ class ApartmentChecker:
             )
             if not total_ok:
                 self.tags.add("total_not_close")
+            flags.append(total_ok)
 
-        return habitable_ok and inside_ok and total_ok
+        return flags > 0 and all(flags)
 
 
 class ApartmentConverter:
