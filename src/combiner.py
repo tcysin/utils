@@ -3,16 +3,16 @@ This module contains functionality for working with extracted data
 (foregrounds, apartments, etc) and various checks.
 """
 
-import logging
 from collections import defaultdict
 from copy import deepcopy
 from math import isclose
-from typing import Any, Iterable, Mapping, Sequence, Tuple, Union
+from typing import Any, Iterable, Mapping, Sequence, Set, Tuple, Union
 
 import pandas as pd
 
 
 # TODO comments
+# TODO better tag management (non-hardcoded list of tags, explanations, etc)
 class Region:
     def __init__(self, coords: Sequence[int], score: float, label: str):
         self.coords = tuple(coords)  # (x_min, y_min, x_max, y_max)
@@ -140,17 +140,20 @@ class Apartment:
         id_region: DigitRegion,
         infobox: Infobox,
         rooms: Iterable[Room],
+        tags: Iterable[str] = None,
     ):
         self.filename = filename
         self.id_region = id_region
         self.infobox = infobox
         self.rooms = frozenset(rooms)
+        self.tags: Set[str] = set(tags) if tags is not None else set()
 
     def __repr__(self):
         s = "Apartment\n"
         s += " " * self._indent + f"filename: {self.filename}\n"
         s += " " * self._indent + "id region: " + repr(self.id_region) + "\n"
         s += " " * self._indent + "infobox: " + repr(self.infobox) + "\n"
+        s += " " * self._indent + "tags: " + repr(self.tags) + "\n"
         s += " " * self._indent + "rooms: [\n"
         s += ",\n".join(" " * 2 * self._indent + repr(r) for r in self.rooms)
         s += "\n])"
@@ -186,11 +189,12 @@ class ApartmentChecker:
         """
         Set up the checker for this apartment.
 
-        Creates `self.label2rooms` and `self.label2counts` mappings for
-        this apartment to facilitate further checks.
+        Creates `tags` set, `self.label2rooms` and `self.label2counts`
+        mappings for this apartment to facilitate further checks.
         """
 
         self.apartment = apartment
+        self.tags = set()
         label2rooms = defaultdict(list)
 
         for room in apartment.rooms:
@@ -212,10 +216,12 @@ class ApartmentChecker:
             - exclusivity
             - required pairs
             - total m2 areas match between rooms and infobox
+
+        If an apartment fails any checks, adds a tag corresponding to failed
+        check to a set of tags.
         """
 
         # TODO better messages in debug
-        logging.debug(f"checking {apartment.filename}")
         # TODO maybe make check functions accept some explicit params instead? easier to test?
         # TODO add debug calls
         # TODO see if you need to add teardown() and wrap this whole thing
@@ -263,9 +269,6 @@ class ApartmentChecker:
             and paired_ok
             and cross_check_ok
         )
-
-        if ok:
-            logging.debug("ok")
 
         return ok
 
@@ -324,14 +327,14 @@ class ApartmentChecker:
         num_regions = len(present_regions)
         length_ok = 0 < num_regions <= 3
         if not length_ok:
-            logging.debug(f"infobox not ok: {num_regions} regions")
+            self.tags.add("infobox_bad_regions_count")
             return False
 
         # check habitable <= inside <= total
         values = [region.value for region in present_regions]
         non_decreasing_ok = non_decreasing(values)
         if not non_decreasing_ok:
-            logging.debug(f"infobox not ok: {values} out of order")
+            self.tags.add("infobox_incorrect_regions")
 
         # TODO implemenbt maximum values check for DigitRegions
         vmax_ok = True
@@ -353,10 +356,7 @@ class ApartmentChecker:
             count_ok = mincount <= count <= maxcount
 
             if not count_ok:
-                logging.debug(
-                    f"count not ok: label [{label}], "
-                    f"count {count}, range ({mincount}, {maxcount})"
-                )
+                self.tags.add(f"bad_count_{label}")
                 return False
 
         return True
@@ -376,10 +376,7 @@ class ApartmentChecker:
                 m2_ok = minval <= room.m2 <= maxval
 
                 if not m2_ok:
-                    logging.debug(
-                        f"m2 not ok: label [{label}], "
-                        f"m2 {room.m2}, range ({minval}, {maxval})"
-                    )
+                    self.tags.add(f"bad_value_{label}")
                     return False
 
         return True
@@ -391,7 +388,7 @@ class ApartmentChecker:
 
         entrance_ok = "lobby" in self.label2counts
         if not entrance_ok:
-            logging.debug("entrance not ok: lobby is missing")
+            self.tags.add("missing_lobby")
 
         return entrance_ok
 
@@ -409,7 +406,7 @@ class ApartmentChecker:
             or "living_room_with_kitchen" in self.label2counts
         )
         if not habitable_ok:
-            logging.debug("habitable spaces not ok")
+            self.tags.add("missing_habitable_spaces")
 
         return habitable_ok
 
@@ -427,7 +424,7 @@ class ApartmentChecker:
             or "living_room_with_kitchen" in self.label2counts
         )
         if not kitchen_spaces_ok:
-            logging.debug("kitchen spaces not ok")
+            self.tags.add("missing_kitchen_spaces")
 
         return kitchen_spaces_ok
 
@@ -442,7 +439,7 @@ class ApartmentChecker:
             "bathroom" in self.label2counts and "toilet" in self.label2counts
         )
         if not wc_spaces_ok:
-            logging.debug("wc spaces not ok")
+            self.tags.add("missing_wc_spaces")
 
         return wc_spaces_ok
 
@@ -463,7 +460,7 @@ class ApartmentChecker:
         ]
         ok = sum(flags) == 1
         if not ok:
-            logging.debug("kitchen spaces are not exclusive")
+            self.tags.add("non_exclusive_kitchen_spaces")
 
         return ok
 
@@ -480,9 +477,7 @@ class ApartmentChecker:
         ]
         ok = sum(flags) != 2
         if not ok:
-            logging.debug(
-                "not ok: both living_room_with_kitchen and living_room present"
-            )
+            self.tags.add("non_exclusive_lrwk_lr")
 
         return ok
 
@@ -500,7 +495,7 @@ class ApartmentChecker:
         ]
         ok = sum(flags) != 1
         if not ok:
-            logging.debug("not ok: either kitchen_niche or living_room are missing")
+            self.tags.add("bad_pair_kn_lr")
 
         return ok
 
@@ -530,9 +525,7 @@ class ApartmentChecker:
                 habitable_m2, infobox.habitable.value, abs_tol=self.cfg["tolerance"]
             )
             if not habitable_ok:
-                logging.debug(
-                    f"habitable spaces totals are not close: {habitable_m2} vs {infobox.habitable.value}"
-                )
+                self.tags.add("habitable_not_close")
 
         if infobox.inside is not None:
             inside_m2 = self.get_total_m2(rooms, self.cfg["classes_inside"])
@@ -540,9 +533,7 @@ class ApartmentChecker:
                 inside_m2, infobox.inside.value, abs_tol=self.cfg["tolerance"]
             )
             if not inside_ok:
-                logging.debug(
-                    f"inside spaces totals are not close: {inside_m2} vs {infobox.inside.value}"
-                )
+                self.tags.add("inside_not_close")
 
         if infobox.total is not None:
             total_m2 = self.get_total_m2(rooms)
@@ -550,9 +541,7 @@ class ApartmentChecker:
                 total_m2, infobox.total.value, abs_tol=self.cfg["tolerance"]
             )
             if not total_ok:
-                logging.debug(
-                    f"total spaces totals are not close: {total_m2} vs {infobox.total.value}"
-                )
+                self.tags.add("total_not_close")
 
         return habitable_ok and inside_ok and total_ok
 
@@ -560,10 +549,22 @@ class ApartmentChecker:
 class ApartmentConverter:
     """
     Helper class for conversion of iterable of apartments to pandas DataFrame.
+
+    Can re-map room labels given new mapping.
     """
 
-    def __init__(self, mapper_dict: Mapping[str, str] = {}) -> None:
+    def __init__(
+        self, mapper_dict: Mapping[str, str] = {}, with_tags: bool = False
+    ) -> None:
+        """
+        Initialize the converter instance.
+
+        Args:
+            mapper_dict: mapping between original and new labels for rooms.
+            with_tags: whether to add a list of apartment tags as additional dict key.
+        """
         self.mapper_dict = mapper_dict
+        self.with_tags = with_tags
 
     def to_df(self, apartments: Iterable[Apartment]) -> pd.DataFrame:
         """
@@ -614,6 +615,10 @@ class ApartmentConverter:
                     name = stem + str(idx)
                     d[name] = m2
 
+            # add tags key if needed
+            if self.with_tags:
+                d["tags"] = ", ".join(apartment.tags)
+
             apartment_dicts.append(d)
 
         df = pd.DataFrame(apartment_dicts)
@@ -629,9 +634,6 @@ def non_decreasing(seq: Sequence):
 
 
 if __name__ == "__main__":
-    logging.basicConfig(
-        format="%(asctime)s - %(levelname)s - %(message)s", level=logging.DEBUG
-    )
 
     cfg = {
         "count_range": {
