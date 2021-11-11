@@ -545,7 +545,7 @@ class ApartmentChecker:
                 self.tags.add("total_not_close")
             flags.append(total_ok)
 
-        return flags > 0 and all(flags)
+        return len(flags) > 0 and all(flags)
 
 
 class ApartmentConverter:
