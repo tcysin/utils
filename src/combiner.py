@@ -13,6 +13,8 @@ import pandas as pd
 
 # TODO comments
 # TODO better tag management (non-hardcoded list of tags, explanations, etc)
+
+
 class Region:
     def __init__(self, coords: Sequence[int], score: float, label: str):
         self.coords = tuple(coords)  # (x_min, y_min, x_max, y_max)
@@ -140,13 +142,13 @@ class Apartment:
         id_region: DigitRegion,
         infobox: Infobox,
         rooms: Iterable[Room],
-        tags: Iterable[str] = None,
+        tags: Iterable = None,
     ):
         self.filename = filename
         self.id_region = id_region
         self.infobox = infobox
         self.rooms = frozenset(rooms)
-        self.tags: Set[str] = set(tags) if tags is not None else set()
+        self.tags: Set = set(tags) if tags is not None else set()
 
     def __repr__(self):
         s = "Apartment\n"
@@ -619,7 +621,7 @@ class ApartmentConverter:
 
             # add tags key if needed
             if self.with_tags:
-                d["tags"] = ", ".join(apartment.tags)
+                d["tags"] = ", ".join(sorted(apartment.tags))
 
             apartment_dicts.append(d)
 
@@ -766,11 +768,21 @@ if __name__ == "__main__":
                 label="bedroom",
                 m2=float("12.67"),
             ),
-            # Room(coords=(13, 42, 33, 89), score=0.73, label='balcony', m2=float("100.67")),
-            # Room(coords=(13, 42, 33, 89), score=0.73, label='balcony', m2=float("0.67")),
-            # Room(coords=(13, 42, 33, 89), score=0.73, label='balcony', m2=float("0.67")),
-            # Room(coords=(13, 42, 33, 89), score=0.73, label='balcony', m2=float("0.67")),
-            # Room(coords=(13, 42, 33, 89), score=0.73, label='balcony', m2=float("0.67")),
+            Room(
+                coords=(13, 42, 33, 89), score=0.73, label="balcony", m2=float("100.67")
+            ),
+            Room(
+                coords=(13, 42, 33, 89), score=0.73, label="balcony", m2=float("0.67")
+            ),
+            Room(
+                coords=(13, 42, 33, 89), score=0.73, label="balcony", m2=float("0.67")
+            ),
+            Room(
+                coords=(13, 42, 33, 89), score=0.73, label="balcony", m2=float("0.67")
+            ),
+            Room(
+                coords=(13, 42, 33, 89), score=0.73, label="balcony", m2=float("0.67")
+            ),
             # Room(coords=(13, 42, 33, 89), score=0.73, label='balcony', m2=float("0.67")),
             # Room(coords=(13, 42, 33, 89), score=0.73, label='balcony', m2=float("0.67")),
         ],
@@ -778,6 +790,7 @@ if __name__ == "__main__":
 
     checker = ApartmentChecker(cfg)
     checker(apt)
+    apt.tags.update(checker.tags)
 
     mapping = {
         "balcony": "балкон",
@@ -796,7 +809,7 @@ if __name__ == "__main__":
         "toilet": "туалет",
         "wc": "с/у",
     }
-    converter = ApartmentConverter()
+    converter = ApartmentConverter(with_tags=True)
     df = converter.to_df([apt, apt, apt, apt])
     print(df)
     # df.to_csv("sample.csv")
