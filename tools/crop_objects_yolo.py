@@ -141,16 +141,18 @@ def crop_objects_yolo(
     labels_dir: Path,
     out_dir: Path,
     yaml_path: Path = None,
-    folder="rois",
-    file="filename2objects.json",
-    pad=0,
-    prefix="",
+    folder: str = "rois",
+    file: str = "filename2objects.json",
+    pad: int = 0,
+    prefix: str = "",
     verbose=False,
 ):
 
+    # TODO preconditions? checks?
+
     # prepare output directory for roi crops
     rois_dir = out_dir / folder
-    rois_dir.mkdir()
+    rois_dir.mkdir(exist_ok=True)
 
     # load classes from dataset.yaml, if any
     if yaml_path:
@@ -163,10 +165,13 @@ def crop_objects_yolo(
     # set up the procedure
     filename2objects = defaultdict(list)
     obj_id = 1
+    skipped = 0
 
     # get paths to images in given directory
     fnames = get_image_files(data_dir)
     assert fnames, f"no images in {data_dir}"
+    if verbose:
+        print(f"Found {len(fnames)} images in {data_dir}. Processing...")
 
     # extract ROIs
     wrapper = tqdm if verbose else iter
@@ -174,6 +179,11 @@ def crop_objects_yolo(
         # get path to txt predictions file for this image
         txt_name = image_path.stem + ".txt"
         txt_path = labels_dir / txt_name
+
+        # skip further processing if predictions file does not exist
+        if not txt_path.exists():
+            skipped += 1
+            continue
 
         # load YOLOv5 predictions
         output = load_yolo_predictions(txt_path, classes)
@@ -204,6 +214,8 @@ def crop_objects_yolo(
     if verbose:
         N = len(get_image_files(rois_dir))
         print(f"Extracted {N} ROIs.")
+        if skipped:
+            print(f"{skipped} images skipped; no corresponding predictions.")
 
 
 if __name__ == "__main__":
