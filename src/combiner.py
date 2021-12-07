@@ -155,7 +155,7 @@ class Apartment:
         s += " " * self._indent + f"filename: {self.filename}\n"
         s += " " * self._indent + "id region: " + repr(self.id_region) + "\n"
         s += " " * self._indent + "infobox: " + repr(self.infobox) + "\n"
-        s += " " * self._indent + "tags: " + repr(self.tags) + "\n"
+        s += " " * self._indent + "tags: " + repr(sorted(self.tags)) + "\n"
         s += " " * self._indent + "rooms: [\n"
         s += ",\n".join(" " * 2 * self._indent + repr(r) for r in self.rooms)
         s += "\n])"

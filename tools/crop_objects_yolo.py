@@ -130,7 +130,9 @@ def get_parser():
         help="by how much pixels to pad the ROI before cropping (default: 0)",
     )
     parser.add_argument(
-        "--prefix", default="", help="prefix for ROI filenames (empty by default)"
+        "--prefix",
+        default="object",
+        help='prefix for ROI filenames (default: "object")',
     )
 
     return parser
@@ -149,10 +151,11 @@ def crop_objects_yolo(
 ):
 
     # TODO preconditions? checks?
+    # TODO split into two steps > format conversion, then extraction
 
     # prepare output directory for roi crops
     rois_dir = out_dir / folder
-    rois_dir.mkdir(exist_ok=True)
+    rois_dir.mkdir()  # TODO test that rois_dir is empty and does not exist
 
     # load classes from dataset.yaml, if any
     if yaml_path:
@@ -213,9 +216,9 @@ def crop_objects_yolo(
 
     if verbose:
         N = len(get_image_files(rois_dir))
-        print(f"Extracted {N} ROIs.")
+        print(f"Extracted {N} object region(s).")
         if skipped:
-            print(f"{skipped} images skipped; no corresponding predictions.")
+            print(f"{skipped} image(s) skipped: no corresponding predictions.")
 
 
 if __name__ == "__main__":
